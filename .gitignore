@@ -6,8 +6,7 @@
 /storage/*.key
 /vendor
 .env
-.env.backup
-.env.production
+.env.bak.*
 .phpunit.result.cache
 Homestead.json
 Homestead.yaml
@@ -17,3 +16,7 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
+/bootstrap/cache/*.php
+compose.env
+*.sql
+docker-compose.prod.yml.bak.*
