@@ -32,6 +32,7 @@ return [
     ],
 
     'ga' => [
+        'enabled' => env('GA_ENABLED', false),
         'measurement_id' => env('GA_MEASUREMENT_ID'),
     ],
     'clarity' => [

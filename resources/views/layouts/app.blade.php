@@ -10,7 +10,7 @@
     <meta name="description" content="@yield('meta_description', 'Tools Hubは、文字数カウントなどの無料ツールを提供します。')">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    {{-- robots は通常 index。必要なページは子ビューで @section(\'robots\') を定義して上書き --}}
+    {{-- robots は通常 index。必要なページは子ビューで @section('robots') を定義して上書き --}}
     @hasSection('robots')
       @yield('robots')
     @endif
@@ -23,32 +23,30 @@
     <meta property="og:url" content="{{ url()->full() }}">
     <meta property="og:image" content="{{ url(asset('tools_hub_logo.png')) }}">
     <meta name="twitter:card" content="summary_large_image">
+    
+    {{-- GSC: 所有権メタ（常時出す） --}}
+    @if($gsc = config('services.gsc.verification'))
+      <meta name="google-site-verification" content="{{ $gsc }}">
+    @endif
 
     {{-- Vite --}}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     {{-- 公開側のみ：広告スクリプト --}}
     @unless (request()->routeIs('admin.*'))
-    @include('partials.ads.script')
+      @include('partials.ads.script')
     @endunless
 
-    {{-- 解析・本番のみ＆公開ページのみ＆ページ側でno_analitics未指定のとき --}}
+    {{-- 解析・本番のみ＆公開ページのみ＆ページ側でno_analytics未指定のとき --}}
     @php
       $isPublic = !request()->routeIs('admin.*') && !request()->is('admin/*');
+      $enabled = app()->environment('production') && env('ANALYTICS_ENABLED', false);
     @endphp
-    @if (app()->environment('production') && $isPublic && !View::hasSection('no_analytics'))
-      {{-- Google Analytics 4（測定IDは .env → config/services.php から参照） --}}
-      @if($gaId = config('services.ga.measurement_id'))
-        <script async src="https://www.googletagmanager.com/gtag/js?id={{ $gaId }}"></script>
-        <script>
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', '{{ $gaId }}', { anonymize_ip: true });
-        </script>
-      @endif
-      
-      {{-- （任意）Microsoft Clarity：プロジェクトIDがあれば差し込む --}}
+    @if ($enabled && $isPublic && !View::hasSection('no_analytics'))
+      {{-- GA4：パーシャルに集約 --}}
+      @include('partials.ads.ga')
+
+      {{-- Microsoft Clarity（必要な場合のみ） --}}
       @if($clarityId = config('services.clarity.project_id'))
         <script>
           (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
@@ -56,11 +54,6 @@
             y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
           })(window, document, "clarity", "script", "{{ $clarityId }}");
         </script>
-      @endif
-
-       {{-- （任意）Search Console 所有権メタ：検証中だけ入れてOK --}}
-      @if($gsc = config('services.gsc.verification'))
-        <meta name="google-site-verification" content="{{ $gsc }}">
       @endif
     @endif
 
@@ -80,7 +73,7 @@
     {{-- 既存のメタ挿入口も残す場合 --}}
     @yield('meta')
 </head>
-<body class="min-h-dvh bg-white text-gray-900"> {{-- ← min-h-dbh → min-h-dvh に変更 --}}
+<body class="min-h-dvh bg-white text-gray-900">
     {{-- ヘッダー --}}
     @include('layouts.navigation')
 
@@ -88,7 +81,6 @@
     <main class="border">
         <div class="mx-auto max-w-5xl p-4">
             <x-flash />
-
             @yield('content')
         </div>
     </main>
