@@ -24,3 +24,7 @@ yarn-error.log
 *.sql.gz
 *.sql.bak
 backup_db_*.sql.gz
+
+# Laravel runtime cache
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
