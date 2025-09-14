@@ -3,7 +3,7 @@
 
 @section('title', '文字数カウント｜' . config('app.name'))
 @section('meta')
-  <meta name="description" content="改行やスペースを含む文字数をカウントできる無料ツール。小説・ブログ・SNS に便利です。">
+  <meta name="description" content="無料の文字数カウントツール。改行や全角・半角スペースも正確に計測。小説・ブログ・SNS投稿の字数制限チェックに最適です。">
 @endsection
 
 @section('content')
