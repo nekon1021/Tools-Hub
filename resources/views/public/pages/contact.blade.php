@@ -3,6 +3,8 @@
 
 @section('title', 'お問い合わせ｜' . config('app.name'))
 
+@section('meta_description', 'Tools Hubのお問い合わせページです。ご意見・不具合報告・掲載依頼などを受け付けています。返信はメールにてご連絡いたします。')
+
 @section('content')
 <div class="max-w-xl mx-auto py-8 px-4">
   <h1 class="text-2xl font-bold mb-6">お問い合わせ</h1>

@@ -2,6 +2,8 @@
 
 @section('title', 'サイトマップ')
 
+@section('meta_description', 'Tools Hubのサイトマップ。無料ツール一覧・記事カテゴリ別一覧・最新記事をまとめて掲載。目的のコンテンツへ素早くアクセスできます。')
+
 @section('content')
 <main class="container mx-auto max-w-5xl px-4 py-10">
   <h1 class="text-2xl font-bold mb-8">サイトマップ</h1>

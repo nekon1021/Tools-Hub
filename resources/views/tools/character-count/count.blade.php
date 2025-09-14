@@ -2,9 +2,8 @@
 @extends('layouts.app')
 
 @section('title', '文字数カウント｜' . config('app.name'))
-@section('meta')
-  <meta name="description" content="無料の文字数カウントツール。改行や全角・半角スペースも正確に計測。小説・ブログ・SNS投稿の字数制限チェックに最適です。">
-@endsection
+
+@section('meta_description', '無料で使える文字数カウントツール。改行や全角・半角スペースも正確に計測。小説・ブログ・SNS投稿の文字数制限チェックに最適で、安心してご利用いただけます。')
 
 @section('content')
   {{-- 単一カラム：中央にツール本体だけ --}}

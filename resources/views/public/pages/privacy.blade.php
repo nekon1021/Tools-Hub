@@ -2,6 +2,8 @@
 
 @section('title', 'プライバシーポリシー｜' . config('app.name'))
 
+@section('meta_description', 'Tools Hubのプライバシーポリシー。アクセス解析（Googleアナリティクス）と広告配信におけるCookieの利用、取得データ、免責事項、問い合わせ窓口を明記しています。')
+
 @section('content')
 <div class="max-w-3xl mx-auto px-4 py-8">
   <h1 class="text-2xl font-bold mb-6">プライバシーポリシー</h1>

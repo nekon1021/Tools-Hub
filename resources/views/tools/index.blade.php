@@ -2,6 +2,8 @@
 
 @section('title',  '無料便利ツール一覧 - ' . config('app.name'))
 
+@section('meta_description', '無料で使える便利ツールを一覧で紹介。文字数カウントなど実務・学習に役立つWebツールを随時追加。ブラウザ完結・登録不要で安心です。')
+
 @section('content')
   <div class="max-w-2xl mx-auto space-y-6">
     <h1 class="text-2xl font-bold mb-6">無料便利ツール一覧</h1>

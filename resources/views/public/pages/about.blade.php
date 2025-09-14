@@ -3,6 +3,8 @@
 
 @section('title', '運営者情報｜' . config('app.name'))
 
+@section('meta_description', 'Tools Hubの運営者情報ページです。サイトの目的と運営体制、連絡方法をご案内します。お問い合わせはフォームよりお気軽にお寄せください。')
+
 @section('content')
 <div class="max-w-3xl mx-auto py-8 px-4">
   <h1 class="text-2xl font-bold mb-6">運営者情報</h1>

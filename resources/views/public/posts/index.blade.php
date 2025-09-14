@@ -2,6 +2,8 @@
 
 @section('title', '記事一覧｜' . config('app.name'))
 
+@section('meta_description', 'Tools Hubの記事一覧です。キーワード検索や最新記事から目的の情報を素早く探せます。')
+
 @section('content')
   <h1 class="text-2xl font-bold mb-4">記事一覧</h1>
 
