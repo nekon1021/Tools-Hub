@@ -85,13 +85,24 @@
       <section class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700 space-y-3">
         <h2 class="font-semibold text-gray-800">このツールについて</h2>
         <p>小説・ブログ・SNS 投稿などの文字数チェックにご利用いただけます。<br>入力内容は保存されず、すべてブラウザ上で処理されるため安心してお使いください。</p>
-        <ul class="list-disc ml-5 space-y-2">
-          <li><strong>文字数（空白込み）</strong><span class="block ml-6">文字・改行・スペースを1文字としてカウント。</span></li>
-          <li><strong>文字数（改行抜き）</strong><span class="block ml-6">改行は数えません。</span></li>
-          <li><strong>文字数（スペースと改行抜き）</strong><span class="block ml-6">文字のみカウント。</span></li>
-          <li><strong>行数</strong><span class="block ml-6">改行数ベース。</span></li>
-          <li><strong>スペース数</strong><span class="block ml-6">半角・全角スペースの合計。</span></li>
-        </ul>
+       <dl class="space-y-3 ml-5">
+        <div>
+          <dt class="font-semibold">文字数</dt>
+          <dd class="ml-6">すべての文字を1文字として数えます。空白（全角・半角スペースやタブ）や改行も含めてカウントします。</dd>
+        </div>
+        <div>
+          <dt class="font-semibold">文字数（改行抜き）</dt>
+          <dd class="ml-6">改行を除外してカウントします。空白（全角・半角スペースやタブ）は含めます。</dd>
+        </div>
+        <div>
+          <dt class="font-semibold">文字数（スペースと改行抜き）</dt>
+          <dd class="ml-6">空白（全角・半角スペースやタブ）と改行を除外し、文字だけをカウントします。</dd>
+        </div>
+        <div>
+          <dt class="font-semibold">行数</dt>
+          <dd class="ml-6">テキストを改行で区切り、行の数をカウントします。</dd>
+        </div>
+      </dl>
       </section>
 
       {{-- 下部広告 --}}
