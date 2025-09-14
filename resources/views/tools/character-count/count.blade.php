@@ -57,7 +57,7 @@
         data-server-whitespace="{{ $r['whitespace'] ?? 0 }}"
       >
         <div>
-          <div class="text-gray-500 text-sm">文字数（スペース込み）</div>
+          <div class="text-gray-500 text-sm">文字数</div>
           <div id="live-chars" class="text-2xl font-bold" aria-live="polite">{{ $r['chars'] ?? 0 }}</div>
         </div>
         <div>
