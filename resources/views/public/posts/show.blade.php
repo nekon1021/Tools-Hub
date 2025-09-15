@@ -5,13 +5,10 @@
   use Illuminate\Support\Str;
   use Illuminate\Support\Facades\Storage;
 
-  // メタ
+  // メタ（DB優先 → 自動生成）
   $metaTitle = $post->meta_title ?: $post->title;
   $metaDesc  = $post->meta_description
     ?: ($post->lead ? Str::limit($post->lead, 120) : Str::limit(strip_tags($post->body), 160, '…'));
-
-  // 目次
-  $toc = is_array($post->toc_json) ? $post->toc_json : (json_decode($post->toc_json ?? '[]', true) ?: []);
 
   // アイキャッチ（存在しなければダミーSVG）
   $ey = !empty($post->og_image_path) ? Storage::disk('public')->url($post->og_image_path) : null;
@@ -25,14 +22,22 @@
          </svg>"
       );
   }
+
+  // OGP 用は絶対URL推奨（data: の場合はロゴへフォールバック）
+  $ogImage = Str::startsWith($ey, 'data:')
+      ? url(asset('tools_hub_logo.png'))
+      : url($ey); // 例: /storage/... -> https://example.com/storage/...
 @endphp
 
+{{-- ▼ レイアウトの <head> に反映されるスロット --}}
 @section('title', $metaTitle)
+@section('meta_description', $metaDesc)
+@section('og_image', $ogImage)
 
-@section('meta')
-  <meta name="description" content="{{ $metaDesc }}">
-  <link rel="canonical" href="{{ route('public.posts.show', $post->slug) }}">
-@endsection
+@php
+  // 目次
+  $toc = is_array($post->toc_json) ? $post->toc_json : (json_decode($post->toc_json ?? '[]', true) ?: []);
+@endphp
 
 @section('content')
 <div class="container mx-auto max-w-5xl px-4 py-6">
@@ -76,11 +81,6 @@
         </div>
       @endif
 
-      {{-- リード直下広告（必要時ON） --}}
-      {{-- @if(!empty($post->show_ad_under_lead)) --}}
-        {{-- <x-ad.slot id="under-lead" class="my-6" /> --}}
-      {{-- @endif --}}
-
       {{-- 目次 --}}
       @if(!empty($toc))
         <nav class="mb-6 rounded border bg-gray-50 p-4 text-sm">
@@ -107,58 +107,11 @@
       <div id="postBody" class="editor-prose mb-8">
         {!! $post->body !!}
       </div>
-
-      {{-- 本文中広告テンプレ（必要時ON） --}}
-      {{-- @if(!empty($post->show_ad_in_body)) --}}
-        {{-- <template id="ad-in-body-tpl">
-          <x-ad.slot id="in-body" class="my-6" />
-        </template> --}}
-      {{-- @endif --}}
-
-      {{-- 記事末尾広告（必要時ON） --}}
-      {{-- @if(!empty($post->show_ad_below)) --}}
-        {{-- <x-ad.slot id="below" class="my-10" /> --}}
-      {{-- @endif --}}
     </article>
 
     {{-- ★ 右サイドレール：モバイル＝記事下 / PC＝右サイド --}}
     <aside class="block mt-8 lg:mt-0 lg:col-start-2 lg:row-start-1" role="complementary" aria-label="サイドコンテンツ">
       <div class="w-full mx-auto space-y-6 lg:sticky lg:top-4 lg:w-[300px]">
-
-        {{-- 最新記事 --}}
-        <section aria-labelledby="latest-heading" class="rounded border bg-white">
-          <h3 id="latest-heading" class="px-3 py-2 text-sm font-semibold border-b">最新記事</h3>
-          @if(!empty($latestPosts) && $latestPosts->count())
-            <ul class="divide-y">
-              @foreach($latestPosts as $lp)
-                @php
-                  $thumb = $lp->og_image_path
-                    ? Storage::disk('public')->url($lp->og_image_path)
-                    : 'data:image/svg+xml;charset=UTF-8,' . rawurlencode(
-                        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 200\">
-                          <rect width=\"200\" height=\"200\" fill=\"#eef2f7\"/>
-                          <text x=\"50%\" y=\"50%\" dominant-baseline=\"middle\" text-anchor=\"middle\"
-                                font-family=\"system-ui, -apple-system, Segoe UI, Roboto\"
-                                font-size=\"14\" fill=\"#94a3b8\">NO IMAGE</text>
-                        </svg>"
-                      );
-                @endphp
-                <li class="p-3">
-                  <a href="{{ route('public.posts.show', $lp->slug) }}" class="flex gap-3 group">
-                    <img src="{{ $thumb }}" alt="" loading="lazy"
-                          class="w-16 h-16 sm:w-20 sm:h-20 rounded object-cover shrink-0">
-                    <div class="min-w-0">
-                      <div class="text-sm font-medium group-hover:underline clamp-2">{{ $lp->title }}</div>
-                      <div class="text-xs text-gray-500 mt-1">{{ optional($lp->published_at)->format('Y-m-d') }}</div>
-                    </div>
-                  </a>
-                </li>
-              @endforeach
-            </ul>
-          @else
-            <div class="px-3 py-4 text-sm text-gray-500">記事がありません。</div>
-          @endif
-        </section>
 
         {{-- カテゴリ --}}
         <section aria-labelledby="cat-heading" class="rounded border bg-white">
@@ -179,9 +132,6 @@
             <div class="px-3 py-4 text-sm text-gray-500">カテゴリがありません。</div>
           @endif
         </section>
-
-        {{-- （任意）サイド広告はPCのみ固定表示にしたい場合はこのままでOK --}}
-        {{-- <x-ad.slot id="side-rail" class="block w-full lg:w-[300px] mx-auto" /> --}}
       </div>
     </aside>
   </div>
@@ -217,38 +167,5 @@
     e.preventDefault();
     t.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-
-  // 本文内広告（H2直後に最大n枠）
-  // @if(!empty($post->show_ad_in_body) && (int)($post->ad_in_body_max ?? 0) > 0)
-  (function(){
-    const body = document.getElementById('postBody');
-    if (!body) return;
-    const tpl  = document.getElementById('ad-in-body-tpl');
-    if (!tpl?.content) return;
-
-    const max  = Math.min({{ (int)($post->ad_in_body_max ?? 0) }}, 5);
-    let inserted = 0;
-
-    // 1) H2直後に差し込み
-    const h2s = Array.from(body.querySelectorAll('h2'));
-    for (const h2 of h2s) {
-      if (inserted >= max) break;
-      const frag = document.importNode(tpl.content, true);
-      h2.parentNode.insertBefore(frag, h2.nextSibling);
-      inserted++;
-    }
-
-    // 2) 段落フォールバック（3段落ごと）
-    if (inserted < max) {
-      const ps = Array.from(body.querySelectorAll('p'));
-      for (let i = 3; i <= ps.length && inserted < max; i += 3) {
-        const p = ps[i - 1];
-        const frag = document.importNode(tpl.content, true);
-        p.parentNode.insertBefore(frag, p.nextSibling);
-        inserted++;
-      }
-    }
-  })();
-  // @endif
 </script>
 @endsection

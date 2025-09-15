@@ -26,11 +26,12 @@
 
     {{-- OGP/Twitter（デフォルト。子で上書き可） --}}
     <meta property="og:type" content="@yield('og_type', 'website')">
-    <meta property="og:site_name" content="Tools Hub">
+    <meta property="og:site_name" content="{{ config('app.name', 'Tools Hub') }}">
     <meta property="og:title" content="@yield('og_title', $title)">
     <meta property="og:description" content="@yield('og_description', $desc)">
     <meta property="og:url" content="{{ $url }}">
-    <meta property="og:image" content="{{ $ogImg }}">
+    <meta property="og:image" content="@yield('og_image', $ogImg)">
+    <meta name="twitter:image" content="@yield('twitter_image', View::getSections()['og_image'] ?? $ogImg)">
     <meta name="twitter:card" content="summary_large_image">
 
     {{-- GSC: 所有権メタ（設定があれば出す） --}}

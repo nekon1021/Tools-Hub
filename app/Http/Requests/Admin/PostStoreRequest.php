@@ -3,32 +3,52 @@
 namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class PostStoreRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // 認可は運用ポリシーに合わせて。ここでは管理者のみ許可。
         return (bool) $this->user()?->is_admin;
     }
 
     public function rules(): array
     {
         return [
-            // 本文
             'title' => ['required', 'string', 'max:200'],
+
             'slug'  => [
-                'nullable',
-                'string',
-                'max:200',
-                'unique:posts,slug',
-                // 公開ボタンのときだけ必須（Enter送信等で action が空でもコントローラ側で既定 save_draft に倒す想定なら nullable でOK）
-                'required_if:action,publish',
+                'nullable','string','max:200',
+                Rule::unique('posts','slug'),
+                // 「公開」ボタンのときだけ必須
+                Rule::requiredIf(fn() => $this->input('action') === 'publish'),
             ],
-            'body'  => ['required', 'string'],
+
+            'body' => [
+                'required',
+                'string',
+                function (string $attribute, $value, \Closure $fail) {
+                    if (!is_string($value)) {
+                        return $fail('本文は必須です。');
+                    }
+                    // 画像/動画/コード/引用/リスト/見出しがあればOK
+                    if (preg_match('#<(img|video|iframe|pre|blockquote|ul|ol|h2|h3)\b#i', $value)) {
+                        return;
+                    }
+                    // テキスト1文字以上
+                    $text = strip_tags($value);
+                    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $text = preg_replace('/\xC2\xA0|\h/u', ' ', $text);
+                    $text = trim($text ?? '');
+                    if (mb_strlen($text) < 1) {
+                        $fail('本文は必須です。');
+                    }
+                },
+            ],
+
             'lead'  => ['nullable', 'string', 'max:2000'],
 
-            // 画像
+            // アイキャッチ
             'eyecatch' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
 
             // 広告
@@ -42,36 +62,34 @@ class PostStoreRequest extends FormRequest
             'meta_description' => ['nullable', 'string', 'max:160'],
             'og_image_path'    => ['nullable', 'string', 'max:255'],
 
-            // 公開設定
+            // 公開設定/カテゴリ
             'published_at' => ['nullable', 'date'],
             'category_id'  => ['nullable','integer','exists:categories,id'],
 
-            // 送信ボタン（Enter送信などで空になりうるため nullable|in）
             'action'       => ['nullable','in:save_draft,publish'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
-        // 空文字は null に正規化
         $nullify = fn ($key) => ($v = $this->input($key)) === '' ? null : $v;
 
         $this->merge([
-            'title'        => trim((string) $this->input('title', '')),
-            'slug'         => ($s = trim((string) $this->input('slug', ''))) === '' ? null : $s,
-            'lead'         => $nullify('lead'),
-            'meta_title'   => $nullify('meta_title'),
-            'meta_description' => $nullify('meta_description'),
-            'og_image_path'    => $nullify('og_image_path'),
-            'published_at'     => $nullify('published_at'),
-            'category_id'      => $nullify('category_id'),
+            'title'             => trim((string) $this->input('title', '')),
+            'slug'              => ($s = trim((string) $this->input('slug', ''))) === '' ? null : $s,
+            'lead'              => $nullify('lead'),
+            'meta_title'        => $nullify('meta_title'),
+            'meta_description'  => $nullify('meta_description'),
+            'og_image_path'     => $nullify('og_image_path'),
+            'published_at'      => $nullify('published_at'),
+            'category_id'       => $nullify('category_id'),
 
-            // checkbox 正規化（未送信=既定値）
-            'show_ad_under_lead' => $this->boolean('show_ad_under_lead', false),
+            // ✅ boolean正規化（UI既定に合わせ既定値true）
+            'show_ad_under_lead' => $this->boolean('show_ad_under_lead', true),
             'show_ad_in_body'    => $this->boolean('show_ad_in_body', true),
             'show_ad_below'      => $this->boolean('show_ad_below', true),
 
-            // 数値は範囲外を丸めるよりはバリデーションに任せ、未入力は null に
+            // 数値（未入力はnull）
             'ad_in_body_max'     => $this->filled('ad_in_body_max') ? (int) $this->input('ad_in_body_max') : null,
         ]);
     }
@@ -82,9 +100,9 @@ class PostStoreRequest extends FormRequest
             'title.required' => 'タイトルは必須です。',
             'title.max'      => 'タイトルは200文字以内で入力してください。',
 
-            'slug.unique'       => 'このスラッグは既に使用されています。',
-            'slug.required_if'  => '公開するにはスラッグが必要です。',
-            'slug.max'          => 'スラッグは200文字以内で入力してください。',
+            'slug.unique'      => 'このスラッグは既に使用されています。',
+            'slug.max'         => 'スラッグは200文字以内で入力してください。',
+            'slug.required'    => '公開するにはスラッグが必要です。', // Rule::requiredIf でもこのキーで出ます
 
             'body.required' => '本文は必須です。',
 

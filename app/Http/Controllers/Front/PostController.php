@@ -26,7 +26,7 @@ class PostController extends Controller
 
         $q = Post::query()
             ->published()
-            ->with(['user:id,name'])
+            ->with(['user:id,name']) // 必要に応じて 'category:id,name,slug' を追加
             ->select(['id','title','slug','lead','og_image_path','published_at','user_id']);
 
         if (!empty($f['q']))    $q->keyword($f['q']);
@@ -37,7 +37,7 @@ class PostController extends Controller
             $q->whereHas('user', fn($qq) => $qq->where('name', $f['author']));
         }
 
-        // タグ機能がある場合のみ（なければこのブロック削除）
+        // タグ機能がある場合のみ
         if (!empty($f['tag']) && method_exists(Post::class, 'tags')) {
             $q->whereHas('tags', fn($qq) => $qq->where('slug', $f['tag']));
         }
@@ -64,21 +64,6 @@ class PostController extends Controller
             ->where('slug', $slug)
             ->firstOrFail();
 
-        // --- サイドバー：最新記事（現在記事を除外）
-        // ※キャッシュ不要なら Cache::remember(...) を外してください
-        $latestPosts = Cache::remember(
-            "sidebar:latest_posts:exclude_{$post->id}",
-            now()->addMinutes(5),
-            function () use ($post) {
-                return Post::query()
-                    ->published()
-                    ->where('id', '!=', $post->id)
-                    ->orderByDesc('published_at')
-                    ->limit(6)
-                    ->get(['id', 'slug', 'title', 'published_at', 'og_image_path']);
-            }
-        );
-
         // --- サイドバー：カテゴリ（公開記事数つき）
         $sidebarCategories = Cache::remember(
             'sidebar:categories_with_counts',
@@ -95,7 +80,7 @@ class PostController extends Controller
             }
         );
 
-        return view('public.posts.show', compact('post', 'latestPosts', 'sidebarCategories'));
+        // ★ 最新記事は渡さない
+        return view('public.posts.show', compact('post', 'sidebarCategories'));
     }
 }
-

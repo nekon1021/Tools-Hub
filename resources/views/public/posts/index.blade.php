@@ -1,98 +1,144 @@
+{{-- resources/views/public/posts/index.blade.php --}}
 @extends('layouts.app')
 
-@section('title', '記事一覧｜' . config('app.name'))
+@php
+  use Illuminate\Support\Str;
+  use Illuminate\Support\Facades\Storage;
+@endphp
 
+@section('title', '記事一覧｜' . config('app.name'))
 @section('meta_description', 'Tools Hubの記事一覧です。キーワード検索や最新記事から目的の情報を素早く探せます。')
 
 @section('content')
-  <h1 class="text-2xl font-bold mb-4">記事一覧</h1>
+  {{-- ヘッダ / コントロールバー --}}
+  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+    <h1 class="text-2xl font-bold">記事一覧</h1>
 
-  {{-- 検索フォーム --}}
-  <form method="GET" class="mb-6 flex gap-2">
-    <input name="q" value="{{ request('q') }}" placeholder="キーワード" class="border rounded px-3 py-2 w-full sm:w-64">
-    <button class="border rounded px-3 py-2">検索</button>
-    <a href="{{ route('public.posts.index') }}" class="border rounded px-3 py-2">クリア</a>
-  </form>
+    <form method="GET" class="sm:ml-auto flex w-full max-w-xl items-center gap-2">
+      <input
+        name="q" value="{{ request('q') }}"
+        placeholder="キーワードで検索"
+        class="w-full rounded-xl border px-3 py-2"
+      >
+      <button class="rounded-xl border px-3 py-2 hover:bg-gray-50">検索</button>
+      <a href="{{ route('public.posts.index') }}" class="rounded-xl border px-3 py-2 hover:bg-gray-50">クリア</a>
+    </form>
+  </div>
 
-  {{-- ★ 一覧トップ広告 --}}
-  {{-- コンポーネント版 --}}
+  {{-- ★ 一覧トップ広告（任意） --}}
   {{-- <x-ad.slot id="list-top" class="mb-6" /> --}}
-  {{-- 互換パーシャル版（使う場合はどちらか片方だけ残す） --}}
   {{-- @includeIf('partials.ads.list-top') --}}
 
-  @forelse ($posts as $p)
-    {{-- ★ インフィード広告：3件目の前＆以後6の倍数ごとに差し込む例 --}}
-    @if ($loop->iteration === 3 || ($loop->iteration > 3 && (($loop->iteration - 3) % 6) === 0))
-      {{-- コンポーネント版 --}}
-      {{-- <x-ad.slot id="list-grid" class="my-6" /> --}}
-      {{-- 互換パーシャル版 --}}
-      {{-- @includeIf('partials.ads.list-grid') --}}
-    @endif
+  @php
+    // 便利関数：カード用サムネURL
+    $thumbUrl = function($p) {
+      $base = $p->eyecatch_url
+            ?? $p->thumbnail_url
+            ?? (isset($p->og_image_path) ? Storage::disk('public')->url($p->og_image_path) : null)
+            ?? (isset($p->cover_path) ? Storage::url($p->cover_path) : null);
 
-    <article class="mb-4 rounded border bg-white overflow-hidden">
-      <div class="grid sm:grid-cols-[200px_1fr]">
-        {{-- 左：アイキャッチ（16:9固定, CLS対策） --}}
-        <a href="{{ route('public.posts.show', $p->slug) }}" class="block">
-          @php
-            // 実装側のサムネ優先順（存在しない場合に備えてフォールバック）
-            $base = $p->eyecatch_url
-                      ?? $p->thumbnail_url
-                      ?? (isset($p->og_image_path) ? Storage::disk('public')->url($p->og_image_path) : null)
-                      ?? (isset($p->cover_path) ? Storage::url($p->cover_path) : null);
+      return [
+        '1x' => $p->thumb_480x270_url ?? ($base ?: 'https://placehold.jp/480x270.png'),
+        '2x' => $p->thumb_960x540_url ?? ($base ?: 'https://placehold.jp/960x540.png'),
+      ];
+    };
+  @endphp
 
-            $img1x = $p->thumb_200x112_url ?? ($base ?: 'https://placehold.jp/200x112.png');
-            $img2x = $p->thumb_400x225_url ?? ($base ?: 'https://placehold.jp/400x225.png');
-          @endphp
+  @if($posts->count())
+    {{-- レスポンシブカードグリッド：1→2→3列 --}}
+    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      @foreach($posts as $p)
+        @php
+          $thumb = $thumbUrl($p);
+          // 導入文（カテゴリ一覧と同じフォールバック）
+          $intro = Str::limit(strip_tags($p->excerpt ?? $p->lead ?? $p->body ?? ''), 110);
+          // 日付は published_at が無ければ created_at
+          $date  = optional($p->published_at ?? $p->created_at)->format('Y-m-d');
+        @endphp
 
-          <div class="aspect-[16/9]">
-            <img
-              src="{{ $img1x }}"
-              srcset="{{ $img1x }} 200w, {{ $img2x }} 400w"
-              sizes="(min-width:640px) 200px, 100vw"
-              width="400" height="225"  {{-- CLS対策：縦横比を固定 --}}
-              alt="{{ $p->title ?: '記事の画像' }}"
-              class="w-full h-full object-cover"
-              loading="lazy" decoding="async"
-            >
+        {{-- ★ インフィード広告：3枚目の前＆以後6の倍数ごと --}}
+        @if ($loop->iteration === 3 || ($loop->iteration > 3 && (($loop->iteration - 3) % 6) === 0))
+          {{-- <x-ad.slot id="list-grid" class="sm:col-span-2 lg:col-span-3" /> --}}
+          {{-- @includeIf('partials.ads.list-grid') --}}
+        @endif
+
+        <article class="group overflow-hidden rounded-2xl border bg-white shadow-sm transition
+                        hover:shadow-md focus-within:shadow-md">
+          <a href="{{ route('public.posts.show', $p->slug) }}" class="block relative">
+            {{-- 画像：16:9 固定、オーバーレイ＆ズーム演出 --}}
+            <div class="relative aspect-[16/9]">
+              <img
+                src="{{ $thumb['1x'] }}"
+                srcset="{{ $thumb['1x'] }} 480w, {{ $thumb['2x'] }} 960w"
+                sizes="(min-width:1024px) 360px, (min-width:640px) 50vw, 100vw"
+                width="960" height="540"
+                alt="{{ $p->title ?: '記事の画像' }}"
+                loading="lazy" decoding="async"
+                class="h-full w-full object-cover transition-transform duration-300 ease-out
+                       group-hover:scale-[1.03] motion-reduce:transition-none"
+              />
+              {{-- グラデーションオーバーレイ（タイトル可読性UP） --}}
+              <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-black/0 to-transparent"></div>
+
+              {{-- カテゴリバッジ（あれば表示） --}}
+              @if(!empty($p->category?->name))
+                <span class="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium shadow
+                              backdrop-blur-sm">
+                  {{ $p->category->name }}
+                </span>
+              @endif
+            </div>
+          </a>
+
+          <div class="flex flex-col gap-2 p-4">
+            <h2 class="text-base font-semibold leading-snug line-clamp-2">
+              <a href="{{ route('public.posts.show', $p->slug) }}"
+                 class="transition group-hover:text-blue-600 hover:underline">
+                {{ $p->title }}
+              </a>
+            </h2>
+
+            <p class="text-sm text-gray-700 line-clamp-3">{{ $intro }}</p>
+
+            <div class="mt-1 flex items-center gap-3 text-xs text-gray-500">
+              @if($date)<time datetime="{{ $date }}">{{ $date }}</time>@endif
+              <span class="w-px self-stretch bg-gray-200"></span>
+              <span>by {{ $p->user->name ?? '—' }}</span>
+            </div>
+
+            <div class="mt-2">
+              <a href="{{ route('public.posts.show', $p->slug) }}"
+                 class="inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-sm
+                        hover:bg-gray-50">
+                記事を読む
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd"
+                        d="M10.293 3.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L13.586 10H4a1 1 0 110-2h9.586l-3.293-3.293a1 1 0 010-1.414z"
+                        clip-rule="evenodd" />
+                </svg>
+              </a>
+            </div>
           </div>
-        </a>
+        </article>
+      @endforeach
+    </div>
 
-        {{-- 右：本文・メタ・右下ボタン --}}
-        <div class="p-4 flex flex-col">
-          <h2 class="text-lg font-semibold leading-snug line-clamp-2">
-            <a href="{{ route('public.posts.show', $p->slug) }}" class="hover:underline">
-              {{ $p->title }}
-            </a>
-          </h2>
-
-          <div class="mt-1 text-xs text-gray-500 flex flex-wrap gap-x-3">
-            <span>{{ optional($p->published_at)->format('Y-m-d') }}</span>
-            <span>by {{ $p->user->name ?? '—' }}</span>
-          </div>
-
-          <p class="mt-2 text-sm text-gray-700 line-clamp-3">
-            {{ \Illuminate\Support\Str::limit(strip_tags($p->excerpt ?? $p->body ?? ''), 140) }}
-          </p>
-
-          {{-- 右下固定：mt-auto + self-end --}}
-          <div class="mt-auto self-end pt-4">
-            <a href="{{ route('public.posts.show', $p->slug) }}"
-              class="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded border hover:bg-gray-50">
-              記事を読む
-              <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L13.586 10H4a1 1 0 110-2h9.586l-3.293-3.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
-              </svg>
-            </a>
-          </div>
-        </div>
+    <div class="mt-8">{{ $posts->links() }}</div>
+  @else
+    {{-- 空状態 --}}
+    <div class="rounded-2xl border bg-white p-10 text-center">
+      <p class="text-gray-600">記事が見つかりませんでした。</p>
+      <div class="mt-4">
+        <a href="{{ route('public.posts.index') }}" class="rounded-xl border px-3 py-2 hover:bg-gray-50">一覧へ戻る</a>
       </div>
-    </article>
-  @empty
-    <p class="text-gray-500">記事がありません。</p>
-  @endforelse
-
-  <div class="mt-6">{{ $posts->links() }}</div>
-
-  {{-- （任意）一覧ボトム広告：使うなら config/ads.php に slots[g:list-bottom] を追加してから --}}
-  {{-- <x-ad.slot id="list-bottom" class="mt-8" /> --}}
+    </div>
+  @endif
 @endsection
+
+{{-- Tailwind の line-clamp を未導入でも綺麗に省略表示 --}}
+@push('styles')
+<style>
+  .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .line-clamp-3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+</style>
+@endpush

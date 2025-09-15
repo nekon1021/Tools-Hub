@@ -5,17 +5,72 @@
 
 @section('content')
 @php
+  use Illuminate\Support\Facades\Route;
+  use Illuminate\Support\Facades\Storage;
+  use Illuminate\Support\Str;
+
   // ルート名の接頭辞（admin. があれば採用）
-  $prefix  = \Illuminate\Support\Facades\Route::has('admin.posts.index') ? 'admin.' : '';
+  $prefix   = Route::has('admin.posts.index') ? 'admin.' : '';
   $rIndex   = $prefix.'posts.index';
   $rCreate  = $prefix.'posts.create';
   $rEdit    = $prefix.'posts.edit';
   $rDestroy = $prefix.'posts.destroy';
-  $rBulk    = \Illuminate\Support\Facades\Route::has($prefix.'posts.bulk') ? $prefix.'posts.bulk' : null;
-  $rShow = $prefix.'posts.show';
-  $rPreview = \Illuminate\Support\Facades\Route::has($prefix. 'posts.preview') ? $prefix.'posts.preview' : null;
-  $status  = request('status','all');
-  $counts  = $counts ?? ['all'=>0,'published'=>0,'draft'=>0,'trashed'=>0];
+  $rShow    = $prefix.'posts.show';
+  // ゴミ箱プレビュー（コントローラ: previewWithTrashed）を posts.preview として登録している想定
+  $rPreview = Route::has($prefix.'posts.preview') ? $prefix.'posts.preview' : null;
+
+  $rBulk    = Route::has($prefix.'posts.bulk') ? $prefix.'posts.bulk' : null;
+  $bulkEnabled = (bool) $rBulk;
+
+  $status = request('status','all');
+  $counts = $counts ?? ['all'=>0,'published'=>0,'draft'=>0,'trashed'=>0];
+
+  /**
+   * 画像パスを <img src> で使えるURLへ正規化する。
+   * 想定入力の例:
+   *  - フルURL: https://… / //… / data:…
+   *  - publicディスク相対: "eyecatch/foo.jpg" / "public/eyecatch/foo.jpg"
+   *  - 既に配信URL: "/storage/eyecatch/foo.jpg" / "storage/eyecatch/foo.jpg"
+   *  - まれに絶対パス: "/var/www/…/storage/app/public/eyecatch/foo.jpg"
+   */
+  $toUrl = function ($v) {
+    if (empty($v)) return null;
+
+    // 1) 既にURL（http/https/protocol-relative/data）
+    if (Str::startsWith($v, ['http://','https://','//','data:'])) return $v;
+
+    // 2) 既に /storage で配信可能なパス
+    if (Str::startsWith($v, ['/storage/'])) {
+      return $v; // 例: /storage/eyecatch/foo.jpg
+    }
+    if (Str::startsWith($v, ['storage/'])) {
+      // 例: storage/eyecatch/foo.jpg → /storage/eyecatch/foo.jpg
+      return '/storage/' . ltrim(Str::after($v, 'storage/'), '/');
+    }
+
+    // 3) "public/…" を含むストレージキー（よくある）
+    if (Str::startsWith($v, ['public/'])) {
+      $key = Str::after($v, 'public/'); // Storage::disk('public')->url() は "public/" を要求しない
+      return Storage::disk('public')->url($key);
+    }
+
+    // 4) 物理パスが入っていた場合（最終手段）
+    if (Str::startsWith($v, ['/'])) {
+      // public_path 配下の /storage/ ならそのまま返す
+      if (Str::contains($v, '/public/storage/')) {
+        // サーバ上の絶対パス → 配信パスに寄せる
+        $pos = mb_stripos($v, '/public/storage/');
+        if ($pos !== false) {
+          return '/storage/' . ltrim(substr($v, $pos + strlen('/public/storage/')), '/');
+        }
+      }
+      // それ以外の絶対パスは扱えないので null（呼び出し側でプレースホルダへ）
+      return null;
+    }
+
+    // 5) それ以外の通常のキー（例: "eyecatch/foo.jpg"）
+    return Storage::disk('public')->url(ltrim($v, '/'));
+  };
 
   // ソートURL（同じ列なら昇降トグル）
   $mkSort = function (string $key) {
@@ -24,7 +79,8 @@
     return request()->fullUrlWithQuery(['sort'=>$key,'dir'=>$newDir,'page'=>1]);
   };
 
-  $hasPublicShow = \Illuminate\Support\Facades\Route::has('public.posts.show');
+  $hasPublicShow = Route::has('public.posts.show');
+
   $ph1x = 'https://placehold.jp/80x45.png';
   $ph2x = 'https://placehold.jp/160x90.png';
 @endphp
@@ -96,8 +152,8 @@
   </form>
 </details>
 
-{{-- 一括操作（必要時のみ表示） --}}
-@if($rBulk)
+{{-- 一括操作（ルートがある時のみ） --}}
+@if($bulkEnabled)
   <form id="bulk-form" method="POST" action="{{ route($rBulk) }}" class="mb-3 flex items-center gap-2">
     @csrf
     <input type="hidden" name="status" value="{{ $status }}">
@@ -120,7 +176,9 @@
   <table class="min-w-full text-sm">
     <thead class="bg-gray-50 sticky top-0">
       <tr class="text-left">
-        <th class="px-3 py-2 w-10"><input type="checkbox" id="check-all" aria-label="全選択"></th>
+        @if($bulkEnabled)
+          <th class="px-3 py-2 w-10"><input type="checkbox" id="check-all" aria-label="全選択"></th>
+        @endif
         <th class="px-3 py-2 w-20">画像</th>
         <th class="px-4 py-2 w-[40%]"><a class="underline" href="{{ $mkSort('title') }}">タイトル</a></th>
         <th class="px-4 py-2">ステータス</th>
@@ -133,16 +191,30 @@
     <tbody class="divide-y">
       @forelse ($posts as $p)
         @php
-          $base = $p->eyecatch_url
-            ?? $p->thumbnail_url
-            ?? (isset($p->cover_path) ? \Illuminate\Support\Facades\Storage::url($p->cover_path) : null);
-          $img1x = $p->thumb_80x45_url ?? ($base ?: $ph1x);
-          $img2x = $p->thumb_160x90_url ?? ($base ?: $ph2x);
+          // サムネイル優先（相対→URL正規化）
+          $thumb1x = $toUrl($p->thumb_80x45_url ?? null);
+          $thumb2x = $toUrl($p->thumb_160x90_url ?? null);
+
+          // ベース画像（eyecatch → thumbnail → og_image_path(public)）
+          $base = $toUrl($p->eyecatch_url ?? null)
+               ?: $toUrl($p->thumbnail_url ?? null)
+               ?: ($p->og_image_path ? $toUrl($p->og_image_path) : null);
+
+          // 実際に使う画像（なければプレースホルダ）
+          $img1x = $thumb1x ?: ($base ?: $ph1x);
+          $img2x = $thumb2x ?: ($base ?: $ph2x);
+
+          // 詳細URL：ゴミ箱はプレビューがあればプレビューへ、それ以外は詳細へ
+          $detailUrl = ($p->deleted_at && $rPreview)
+              ? route($rPreview, $p)
+              : route($rShow, $p);
         @endphp
         <tr class="{{ $p->deleted_at ? 'opacity-70' : '' }}">
-          <td class="px-3 py-2">
-            <input type="checkbox" name="ids[]" form="bulk-form" value="{{ $p->id }}" aria-label="選択: {{ $p->title }}">
-          </td>
+          @if($bulkEnabled)
+            <td class="px-3 py-2">
+              <input type="checkbox" name="ids[]" form="bulk-form" value="{{ $p->id }}" aria-label="選択: {{ $p->title }}">
+            </td>
+          @endif
 
           <td class="px-3 py-2">
             <div class="w-20">
@@ -155,28 +227,29 @@
                   alt="{{ $p->title }} のサムネイル"
                   class="w-full h-full object-cover"
                   loading="lazy" decoding="async"
+                  onerror="this.onerror=null; this.src='{{ $ph1x }}'; this.srcset='{{ $ph1x }} 80w, {{ $ph2x }} 160w';"
                 >
               </div>
             </div>
           </td>
 
           <td class="px-4 py-2">
-            @php
-              $detailUrl = ($p->deleted_at && $rPreview)
-                ? route($rPreview, $p)   // ゴミ箱はプレビューへ
-                : route($rShow, $p);     // 通常は詳細へ
-            @endphp
-
             <div class="font-medium">
               <a href="{{ $detailUrl }}" class="hover:underline">
                 {{ $p->title }}
               </a>
             </div>
-            <div class="text-xs text-gray-500 break-all">/posts/{{ $p->slug }}</div>
+            <div class="text-xs text-gray-500 break-all">
+              @if($p->slug)
+                /posts/{{ $p->slug }}
+              @else
+                <span class="text-gray-400">スラッグ未設定</span>
+              @endif
+            </div>
 
             <div class="mt-1 text-xs">
-              @if($hasPublicShow && $p->is_published && !$p->deleted_at)
-                <a href="{{ route('public.posts.show', $p->slug) }}" target="_blank" class="inline-flex items-center gap-1 text-blue-600 hover:underline">
+              @if($hasPublicShow && $p->is_published && !$p->deleted_at && $p->slug)
+                <a href="{{ route('public.posts.show', $p->slug) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-blue-600 hover:underline">
                   公開ページ
                   <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L13.586 10H4a1 1 0 110-2h9.586l-3.293-3.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                 </a>
@@ -195,27 +268,27 @@
               <span class="rounded bg-gray-100 px-2 py-0.5 text-gray-700">下書き</span>
             @endif
           </td>
+
           <td class="px-4 py-2">{{ $p->published_at?->format('Y-m-d H:i') ?? '—' }}</td>
           <td class="px-4 py-2">{{ $p->created_at->format('Y-m-d H:i') }}</td>
           <td class="px-4 py-2">{{ $p->user->name ?? '—' }}</td>
+
           <td class="px-4 py-2 text-right">
-            @php
-              $detailUrl = ($p->deleted_at && $rPreview)
-                ? route($rPreview, $p)
-                : route($rShow, $p);
-            @endphp
-            
             <a href="{{ $detailUrl }}" class="px-3 py-1 border rounded">詳細</a>
 
             @if($p->deleted_at)
-              {{-- ゴミ箱内：削除ボタンは非表示。復元のみ --}}
-              <form method="POST" action="{{ route($rBulk) }}" class="inline">
-                @csrf
-                <input type="hidden" name="action" value="restore">
-                <input type="hidden" name="ids[]" value="{{ $p->id }}">
-                <button class="px-3 py-1 border rounded">復元</button>
-              </form>
-              {{-- ※ 完全削除を使う場合は上部の「一括操作」で実行させる運用にすると安全です --}}
+              @if($bulkEnabled)
+                {{-- ゴミ箱内：行単位の復元（bulkルートを使う） --}}
+                <form method="POST" action="{{ route($rBulk) }}" class="inline">
+                  @csrf
+                  <input type="hidden" name="action" value="restore">
+                  <input type="hidden" name="ids[]" value="{{ $p->id }}">
+                  <button class="px-3 py-1 border rounded">復元</button>
+                </form>
+                {{-- 完全削除は上の「一括操作」で実行（安全運用） --}}
+              @else
+                <span class="ml-2 text-xs text-gray-400 align-middle">（一括操作ルート未設定のため復元操作は無効）</span>
+              @endif
             @else
               {{-- 通常：編集＋削除（＝ゴミ箱へ移動） --}}
               <a href="{{ route($rEdit, $p) }}" class="px-3 py-1 border rounded">編集</a>
@@ -229,7 +302,7 @@
         </tr>
       @empty
         <tr>
-          <td colspan="8" class="px-4 py-10 text-center text-gray-500">
+          <td colspan="{{ 7 + ($bulkEnabled ? 1 : 0) }}" class="px-4 py-10 text-center text-gray-500">
             対象のデータがありません。
           </td>
         </tr>
@@ -239,12 +312,13 @@
 </div>
 
 {{-- ページング（検索条件保持） --}}
-<div class="mt-4 flex items-center justify-between">
+<div class="mt-4 flex items-center justify-between"><!-- ← items中心 を修正 -->
   <span class="text-sm text-gray-600">全 {{ $posts->total() }} 件中 {{ $posts->firstItem() }}–{{ $posts->lastItem() }}</span>
   {{ $posts->withQueryString()->links() }}
 </div>
 
-{{-- 一括チェック --}}
+{{-- 一括チェック（ルートがある時のみ） --}}
+@if($bulkEnabled)
 <script>
   (function () {
     const all = document.getElementById('check-all');
@@ -254,4 +328,5 @@
     });
   })();
 </script>
+@endif
 @endsection

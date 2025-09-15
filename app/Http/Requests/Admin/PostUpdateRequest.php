@@ -26,15 +26,41 @@ class PostUpdateRequest extends FormRequest
                 'string',
                 'max:200',
                 Rule::unique('posts','slug')->ignore($postId),
-                // 公開ボタンを押した & 既存 slug が空 のときだけ必須にする
+                // 公開ボタンを押した & 既存 slug が空 のときだけ必須
                 Rule::requiredIf(function () use ($post) {
                     return $this->input('action') === 'publish'
-                        && (blank($post?->slug))
-                        && blank($this->input('slug')); // 入力側も空なら必須判定
+                        && blank($post?->slug);
                 }),
             ],
-            'body'  => ['required','string'],
-            'lead'  => ['nullable','string','max:2000'],
+
+            // ← ここを store と同等の判定に
+            'body'  => [
+                'required',
+                'string',
+                function (string $attribute, $value, \Closure $fail) {
+                    if (!is_string($value)) {
+                        return $fail('本文は必須です。');
+                    }
+                    $html = trim($value);
+
+                    // 画像/動画/iframe/コード/引用/リスト/見出しのどれかがあれば有内容
+                    if (preg_match('#<(img|video|iframe|pre|blockquote|ul|ol|h2|h3)\b#i', $html)) {
+                        return;
+                    }
+
+                    // 上記が無いときは素テキストをチェック
+                    $text = strip_tags($html);
+                    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $text = preg_replace('/\xC2\xA0|\h/u', ' ', $text); // &nbsp; 等を空白に
+                    $text = trim($text);
+
+                    if (mb_strlen($text) < 1) {
+                        $fail('本文は必須です。');
+                    }
+                },
+            ],
+
+            'lead'        => ['nullable','string','max:2000'],
             'category_id' => ['nullable','integer','exists:categories,id'],
 
             // 画像（任意）
@@ -90,9 +116,10 @@ class PostUpdateRequest extends FormRequest
             'title.required' => 'タイトルは必須です。',
             'title.max'      => 'タイトルは200文字以内で入力してください。',
 
-            'slug.unique'      => 'このスラッグは既に使用されています。',
-            'slug.max'         => 'スラッグは200文字以内で入力してください。',
-            'slug.required'    => '公開するにはスラッグが必要です。',
+            'slug.unique'   => 'このスラッグは既に使用されています。',
+            'slug.max'      => 'スラッグは200文字以内で入力してください。',
+            // Rule::requiredIf を使っているのでメッセージキーは「required」
+            'slug.required' => '公開するにはスラッグが必要です。',
 
             'body.required' => '本文は必須です。',
 
