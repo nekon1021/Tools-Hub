@@ -173,15 +173,27 @@
   // TOCを生成（h2直下にh3を入れ子）
   const root = toc.querySelector('.toc-root');
   let currentLi = null, subUl = null;
+
+  // ★ H2 用の連番カウンタ
+  let h2Count = 0;
+
   headings.forEach((h, idx) => {
     const level = Number(h.tagName.slice(1));
+
     if (level === 2) {
-      currentLi && root.appendChild(currentLi);
+      // 直前の H2 ブロックを確定
+      if (currentLi) root.appendChild(currentLi);
+
       currentLi = document.createElement('li');
       currentLi.className = 'toc-lv2';
+
       const a = document.createElement('a');
       a.href = `#${h.id}`;
-      a.textContent = h.textContent.trim();
+
+      // ★ H2 に「1. 見出し」形式の番号を付与
+      const text = h.textContent.trim();
+      a.textContent = `${++h2Count}. ${text}`;
+
       currentLi.appendChild(a);
 
       const next = headings[idx+1];
@@ -192,22 +204,32 @@
       } else {
         subUl = null;
       }
+
     } else if (level === 3) {
       if (!currentLi) {
+        // H2 がないまま H3 が来た場合のフォールバック
         currentLi = document.createElement('li');
         currentLi.className = 'toc-lv2';
-        root.appendChild(currentLi);
+        const placeholder = document.createElement('a');
+        placeholder.href = '#';
+        placeholder.textContent = `${++h2Count}.`; // 番号だけ確保
+        currentLi.appendChild(placeholder);
       }
       if (!subUl) {
         subUl = document.createElement('ul');
         subUl.className = 'toc-sub';
         currentLi.appendChild(subUl);
       }
+
       const li = document.createElement('li');
       li.className = 'toc-lv3';
+
       const a = document.createElement('a');
       a.href = `#${h.id}`;
-      a.textContent = h.textContent.trim();
+
+      // ★ H3 には先頭に「・」を付与
+      a.textContent = `・${h.textContent.trim()}`;
+
       li.appendChild(a);
       subUl.appendChild(li);
 
@@ -218,6 +240,7 @@
       }
     }
   });
+
   if (currentLi) root.appendChild(currentLi);
 
   // 目次に項目ができたら表示
@@ -229,7 +252,6 @@
   links.forEach(a => { map.set(decodeURIComponent(a.getAttribute('href').slice(1)), a.closest('li')); });
 
   const io = new IntersectionObserver((entries) => {
-    // 上に近い見出しを優先
     entries.forEach(e => {
       if (!e.isIntersecting) return;
       const id = e.target.getAttribute('id');
@@ -256,5 +278,6 @@
   });
 })();
 </script>
+
 
 @endsection
