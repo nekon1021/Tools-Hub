@@ -3,11 +3,12 @@
 
 @php
   use Illuminate\Support\Str;
+  use Illuminate\Support\Facades\Storage;
 
   $metaTitle = $post->meta_title ?: $post->title;
   $metaDesc  = $post->meta_description ?: ($post->lead ? Str::limit($post->lead, 120) : null);
 
-  // --- toc_json 正規化（配列/JSON文字列/オブジェクト/文字列配列を許容） ---
+  // --- toc_json 正規化 ---
   $raw = is_array($post->toc_json)
     ? $post->toc_json
     : (is_string($post->toc_json)
@@ -19,209 +20,213 @@
   if (is_array($raw)) {
     foreach ($raw as $item) {
       if (is_string($item)) {
-        $toc[] = [
-          'id'    => Str::slug($item) ?: ('h2-' . (count($toc) + 1)),
-          'text'  => $item,
-          'level' => 2,
-        ];
+        $toc[] = ['id' => Str::slug($item) ?: ('h2-'.(count($toc)+1)), 'text' => $item, 'level' => 2];
         continue;
       }
       if (is_object($item)) $item = (array) $item;
 
       if (is_array($item)) {
-        $text  = (string) ($item['text'] ?? $item['title'] ?? '');
+        $text  = (string)($item['text'] ?? $item['title'] ?? '');
         $level = $item['level'] ?? $item['depth'] ?? 2;
-        if (is_string($level)) $level = strtolower($level) === 'h3' ? 3 : 2;
-        $level = (int) $level === 3 ? 3 : 2;
+        if (is_string($level)) $level = strtolower($level)==='h3' ? 3 : 2;
+        $level = (int)$level===3 ? 3 : 2;
 
-        $id = (string) ($item['id'] ?? '');
-        if ($id === '') $id = Str::slug($text) ?: ('h' . $level . '-' . (count($toc) + 1));
+        $id = (string)($item['id'] ?? '');
+        if ($id==='') $id = Str::slug($text) ?: ('h'.$level.'-'.(count($toc)+1));
 
-        if ($text !== '') $toc[] = ['id' => $id, 'text' => $text, 'level' => $level];
+        if ($text!=='') $toc[] = ['id'=>$id,'text'=>$text,'level'=>$level];
       }
     }
   }
 
-  // --- アイキャッチURL 決定（空文字除外・フルURL/相対パス両対応・二重storage対策） ---
-  $ey = null;
-
-  if (filled($post->eyecatch_url)) {
-    $ey = $post->eyecatch_url;
-  } elseif (filled($post->thumbnail_url)) {
-    $ey = $post->thumbnail_url;
-  } elseif (filled($post->og_image_path)) {
-    $p = ltrim((string) $post->og_image_path, '/');
-
-    if (Str::startsWith($p, ['http://','https://'])) {
-      // 既にフルURL
-      $ey = $p;
-    } else {
-      // "storage/..." が保存されている旧データを考慮して二重にならないように
-      if (Str::startsWith($p, 'storage/')) {
-        $p = Str::after($p, 'storage/');
+  // --- H2ごとにH3をグルーピング（編集/作成プレビュー準拠：先行H3は捨てる） ---
+  $tocGroups = [];
+  $currentIndex = -1;
+  foreach ($toc as $row) {
+    $lvl = (int)($row['level'] ?? 2);
+    if ($lvl === 2) {
+      $tocGroups[] = ['id'=>$row['id'], 'text'=>$row['text'], 'children'=>[]];
+      $currentIndex = count($tocGroups) - 1;
+    } elseif ($lvl === 3) {
+      if ($currentIndex === -1) {
+        // 先行H3は表示しない（編集プレビューと同挙動）
+        continue;
       }
-      $ey = \Illuminate\Support\Facades\Storage::disk('public')->url($p);
+      $tocGroups[$currentIndex]['children'][] = ['id'=>$row['id'], 'text'=>$row['text']];
     }
+  }
+
+  // --- アイキャッチURL ---
+  $ey = null;
+  if (filled($post->eyecatch_url))      $ey = $post->eyecatch_url;
+  elseif (filled($post->thumbnail_url)) $ey = $post->thumbnail_url;
+  elseif (filled($post->og_image_path)) {
+    $p = ltrim((string)$post->og_image_path, '/');
+    if (!Str::startsWith($p, ['http://','https://'])) {
+      if (Str::startsWith($p, 'storage/')) $p = Str::after($p, 'storage/');
+      $p = Storage::disk('public')->url($p);
+    }
+    $ey = $p;
   }
 @endphp
 
 @section('title', '記事詳細（管理）｜' . config('app.name'))
 
 @section('content')
-<div class="container mx-auto max-w-5xl px-4 py-6">
-  <div class="mb-6 flex flex-wrap items-center gap-3">
-    <h1 class="text-2xl font-bold">記事詳細（管理）</h1>
-
-    <div class="flex items-center gap-2">
-      @if(!$post->is_published)
-        <span class="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-sm">下書き</span>
-      @elseif($post->published_at && $post->published_at->gt(now()))
-        <span class="px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 text-sm">
-          公開予定 {{ $post->published_at->format('Y-m-d H:i') }}
-        </span>
-      @else
-        <span class="px-2 py-0.5 rounded bg-green-100 text-green-800 text-sm">公開中</span>
-      @endif
-    </div>
+<section class="mx-auto max-w-screen-xl px-4 pt-6 sm:pt-10">
+  <div class="mb-3 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+    <nav aria-label="Breadcrumb">
+      <ol class="flex flex-wrap items-center gap-1">
+        <li><a href="{{ route('admin.posts.index') }}" class="hover:underline">記事一覧</a></li>
+        <li aria-hidden="true">/</li>
+        <li class="text-gray-400">記事詳細</li>
+      </ol>
+    </nav>
 
     <div class="ml-auto flex flex-wrap gap-2">
       <a href="{{ route('admin.posts.edit', $post) }}" class="px-3 py-1.5 border rounded">編集</a>
-      @if($post->is_published && $post->slug)
-        <a href="{{ route('public.posts.show', $post->slug) }}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 border rounded">
-          公開ページを見る
-        </a>
-      @endif
+      @if($post->slug /* && 公開条件をここで出し分けたいなら併記 */)
+      <a href="{{ route('public.posts.show', ['slug' => $post->slug]) }}" target="_blank" rel="noopener">
+        公開ページ
+      </a>
       <a href="{{ route('admin.posts.index') }}" class="px-3 py-1.5 border rounded">一覧へ戻る</a>
     </div>
   </div>
 
-  @if(!$post->is_published)
-    <div class="mb-4 rounded border border-gray-300 bg-gray-50 px-4 py-2 text-gray-700">
-      下書き状態のプレビューです（一般公開されません）。
+  <header class="grid gap-6 lg:grid-cols-3">
+    <div class="lg:col-span-2">
+      <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">記事詳細（管理）</h1>
     </div>
-  @elseif($post->published_at && $post->published_at->gt(now()))
-    <div class="mb-4 rounded border border-yellow-300 bg-yellow-50 px-4 py-2 text-yellow-900">
+
+    {{-- Eyecatch --}}
+    <aside class="lg:col-span-1">
+      @if($ey)
+        <div class="rounded-xl border bg-white p-3 shadow-sm">
+          <figure class="aspect-[16/9] w-full overflow-hidden rounded-lg bg-gray-100">
+            <img src="{{ $ey }}" alt="{{ $post->title }}" class="h-full w-full object-cover" width="1200" height="675">
+          </figure>
+        </div>
+      @endif
+    </aside>
+  </header>
+</section>
+
+{{-- ステータス注意文 --}}
+@if(!$post->is_published)
+  <div class="mx-auto max-w-screen-xl px-4 mt-6">
+    <div class="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-gray-700">下書きプレビュー（一般公開されません）</div>
+  </div>
+@elseif($post->published_at && $post->published_at->gt(now()))
+  <div class="mx-auto max-w-screen-xl px-4 mt-6">
+    <div class="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-yellow-900">
       予約投稿のプレビューです。公開予定: {{ $post->published_at->format('Y-m-d H:i') }}
     </div>
-  @endif
+  </div>
+@endif
 
-  <article class="mx-auto max-w-3xl">
-    <header class="mb-6">
-      <h2 class="text-3xl font-bold mb-2">{{ $post->title }}</h2>
-      <div class="text-sm text-gray-500 space-x-2">
-        <span>スラッグ:
-          @if($post->slug)
-            <code>/posts/{{ $post->slug }}</code>
-          @else
-            <code>（未設定）</code>
-          @endif
-        </span>
-        @if($post->published_at)<span>｜公開日時: {{ $post->published_at->format('Y-m-d H:i') }}</span>@endif
-        @if($post->category)<span>｜カテゴリ: {{ $post->category->name }}</span>@endif
-        @if($post->user)<span>｜作成者: {{ $post->user->name }}</span>@endif
+{{-- 3カラム：左=シェア, 中央=本文, 右=目次 --}}
+<div class="mx-auto max-w-screen-xl px-4 mt-6">
+  <div class="grid gap-6 lg:grid-cols-[56px_minmax(0,1fr)_320px]">
+    {{-- 左：シェアUI --}}
+    <aside class="hidden lg:block">
+      <div class="sticky top-24 flex flex-col items-center gap-2 text-gray-500">
+        <button type="button" title="リンクをコピー" class="rounded-full border p-2 hover:bg-gray-50"
+          onclick="navigator.clipboard.writeText(location.href).then(()=>alert('リンクをコピーしました'));">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><path d="M3.9 12a4.6 4.6 0 0 1 4.6-4.6h3v2.3h-3a2.3 2.3 0 1 0 0 4.6h3v2.3h-3A4.6 4.6 0 0 1 3.9 12Zm6.1 1.1h4V11h-4v2.1Zm5.4-5.7h-3V5.1h3A4.6 4.6 0 0 1 22 9.7a4.6 4.6 0 0 1-4.6 4.6h-3v-2.3h3a2.3 2.3 0 1 0 0-4.6Z"/></svg>
+        </button>
       </div>
-    </header>
+    </aside>
 
-    @if($ey)
-      <figure class="mb-4">
-        <img src="{{ $ey }}" alt="{{ $post->title }}" class="w-full aspect-[16/9] object-cover rounded" width="1200" height="675" loading="lazy">
-      </figure>
-    @endif
+    {{-- 中央：本文 --}}
+    <main class="min-w-0">
+      <article class="mx-auto max-w-3xl">
+        <header class="mb-6">
+          <h2 class="text-3xl font-bold mb-2">{{ $post->title }}</h2>
+          <div class="text-sm text-gray-500 space-x-2">
+            <span>スラッグ: {{ $post->slug ? "/posts/{$post->slug}" : '（未設定）' }}</span>
+            @if($post->published_at)<span>｜公開日時: {{ $post->published_at->format('Y-m-d H:i') }}</span>@endif
+            @if($post->category)<span>｜カテゴリ: {{ $post->category->name }}</span>@endif
+            @if($post->user)<span>｜作成者: {{ $post->user->name }}</span>@endif
+          </div>
+        </header>
 
-    @if($post->lead)
-      <div class="mb-4 editor-prose text-[0.95rem] text-gray-800">
-        {!! nl2br(e($post->lead)) !!}
+        @if($post->lead)
+          <div class="mb-4 editor-prose text-[0.95rem] text-gray-800">
+            {!! nl2br(e($post->lead)) !!}
+          </div>
+        @endif
+
+        @if($post->show_ad_under_lead)
+          @includeIf('partials.ads.under-lead')
+        @endif
+
+        <div id="postBody" class="editor-prose mb-8">
+          {!! $post->body !!}
+        </div>
+
+        @if($post->show_ad_in_body)
+          <template id="ad-in-body-tpl">
+            @includeIf('partials.ads.in-body', ['max' => 1])
+          </template>
+        @endif
+
+        @if($post->show_ad_below)
+          @includeIf('partials.ads.below')
+        @endif
+      </article>
+    </main>
+
+    {{-- 右：目次カード（編集/作成と同じUI） --}}
+    <aside>
+      <div class="lg:sticky lg:top-24 space-y-4">
+        @if(!empty($tocGroups))
+          <section class="rounded-xl border bg-white p-5 sm:p-6" role="navigation" aria-labelledby="tocHeading">
+            <h2 id="tocHeading" class="font-semibold mb-3">目次</h2>
+            <nav id="tocNav" class="text-sm text-gray-700">
+              <ol class="list-decimal pl-5 space-y-1">
+                @foreach($tocGroups as $g)
+                  <li>
+                    @if(!empty($g['id']) && !empty($g['text']))
+                      <a class="underline toc-link" href="#{{ $g['id'] }}">{{ $g['text'] }}</a>
+                    @else
+                      <span class="text-gray-400">（見出し）</span>
+                    @endif
+
+                    @if(!empty($g['children']))
+                      <ul class="pl-5 mt-1 space-y-1">
+                        @foreach($g['children'] as $c)
+                          <li><a class="underline toc-link" href="#{{ $c['id'] }}">{{ $c['text'] }}</a></li>
+                        @endforeach
+                      </ul>
+                    @endif
+                  </li>
+                @endforeach
+              </ol>
+            </nav>
+          </section>
+        @endif
       </div>
-    @endif
-
-    @if($post->show_ad_under_lead)
-      @includeIf('partials.ads.under-lead')
-    @endif
-
-    {{-- 目次（H2配下にH3をネスト） --}}
-    @if(!empty($toc))
-      <nav id="tocNav" class="mb-6 rounded border bg-gray-50 p-4 text-sm">
-        <h3 class="font-semibold mb-2">目次</h3>
-        <ol class="list-decimal pl-5 space-y-1">
-          @php $open = false; @endphp
-          @foreach($toc as $it)
-            @php
-              $id    = $it['id'] ?? '';
-              $text  = $it['text'] ?? '';
-              $level = (int) ($it['level'] ?? 2);
-            @endphp
-
-            @if($level === 2)
-              @if($open)</ul></li>@php $open=false; @endphp @endif
-              <li>
-                <a class="underline" href="#{{ $id }}">{{ $text }}</a>
-                @php $open=true; @endphp
-                <ul class="toc-sub pl-5 mt-1 space-y-1">
-            @elseif($level === 3)
-                @if(!$open)
-                  {{-- H3が先行する場合のフォールバック --}}
-                  <li><span class="text-gray-400">（小見出し）</span><ul class="toc-sub pl-5 mt-1 space-y-1">@php $open=true; @endphp
-                @endif
-                <li><a class="underline" href="#{{ $id }}">{{ $text }}</a></li>
-            @endif
-          @endforeach
-          @if($open)</ul></li>@endif
-        </ol>
-      </nav>
-    @endif
-
-    {{-- 本文 --}}
-    <div id="postBody" class="editor-prose mb-8">
-      {!! $post->body !!}
-    </div>
-
-    {{-- 本文中広告（H2直後に最大n枠） --}}
-    @if($post->show_ad_in_body)
-      <template id="ad-in-body-tpl">
-        @includeIf('partials.ads.in-body', ['max' => 1])
-      </template>
-    @endif
-
-    @if($post->show_ad_below)
-      @includeIf('partials.ads.below')
-    @endif
-  </article>
+    </aside>
+  </div>
 </div>
 
 <style>
-  /* スムーズスクロール & 見出しの頭の隠れ対策 */
   html { scroll-behavior: smooth; }
   :root { --header-offset: 80px; }
-  .editor-prose h1,
-  .editor-prose h2,
-  .editor-prose h3,
-  .editor-prose h4,
-  .editor-prose h5,
-  .editor-prose h6 { scroll-margin-top: var(--header-offset); }
+  .editor-prose h1,.editor-prose h2,.editor-prose h3,.editor-prose h4,.editor-prose h5,.editor-prose h6 { scroll-margin-top: var(--header-offset); }
 
   .editor-prose { color:#111827; }
   .editor-prose p { margin:.7em 0; line-height:1.8; }
   .editor-prose h2 { font-weight:700; line-height:1.35; margin:1.25em 0 .6em; font-size:1.5rem; }
   @media (min-width:640px){ .editor-prose h2{ font-size:1.75rem; } }
   .editor-prose h3 { font-weight:600; line-height:1.45; margin:1.1em 0 .5em; font-size:1.25rem; }
-  .editor-prose ul, .editor-prose ol { margin:.6em 0 .8em; padding-left:1.4em; }
-  .editor-prose ul { list-style:disc; }
-  .editor-prose ol { list-style:decimal; }
-  .editor-prose li { margin:.25em 0; }
   .editor-prose a { color:#2563eb; text-decoration:underline; }
-  .editor-prose blockquote{ margin:1em 0; padding:.6em 1em; color:#374151; border-left:4px solid #e5e7eb; background:#f9fafb; border-radius:.25rem; }
-  .editor-prose pre{ margin:.8em 0; padding:.75rem; border-radius:.5rem; background:#0b1220; color:#e5e7eb; overflow-x:auto; line-height:1.6; }
-  .editor-prose code{ background:#f6f8fa; padding:.15em .35em; border-radius:.4rem; }
-  .editor-prose img{ max-width:100%; height:auto; border-radius:.25rem; }
-
-  .toc-sub { list-style:none; padding-left:1rem; }
-  .toc-sub li { position:relative; padding-left:.9rem; }
-  .toc-sub li::before { content:"・"; position:absolute; left:0; top:0; line-height:1.6; }
+  #tocNav a[aria-current="true"]{ color:#111827; font-weight:600; text-decoration:underline; }
 </style>
 
 <script>
-  // 固定ヘッダー分のオフセット（可変ヘッダーに対応）
-  function getHeaderOffset() {
+  // ヘッダー分のオフセット
+  function getHeaderOffset(){
     const header = document.querySelector('.site-header, .app-header, header[role="banner"]');
     if (!header) {
       const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--header-offset').trim();
@@ -229,55 +234,66 @@
     }
     return header.offsetHeight || 80;
   }
+  function applyHeaderOffsetVar(){
+    document.documentElement.style.setProperty('--header-offset', getHeaderOffset() + 'px');
+  }
+  applyHeaderOffsetVar();
+  window.addEventListener('resize', applyHeaderOffsetVar);
 
-  // 目次のリンクはオフセット付きスムーズスクロール
+  // 目次リンク：オフセット付きスクロール
   const tocNav = document.getElementById('tocNav');
   tocNav?.addEventListener('click', (e) => {
-    const a = e.target.closest('a[href^="#"]');
-    if (!a) return;
-
+    const a = e.target.closest('a[href^="#"]'); if (!a) return;
     const hash = a.getAttribute('href');
-    const target = document.querySelector(hash);
-    if (!target) return;
-
+    const target = document.querySelector(hash); if (!target) return;
     e.preventDefault();
-
-    const offset = getHeaderOffset();
-    const y = target.getBoundingClientRect().top + window.pageYOffset - offset;
-
+    const y = target.getBoundingClientRect().top + window.pageYOffset - getHeaderOffset();
     window.scrollTo({ top: y, behavior: 'smooth' });
     history.pushState(null, '', hash);
-
     target.setAttribute('tabindex', '-1');
     target.focus({ preventScroll: true });
   });
 
-  // #直リンク時の初期位置補正
+  // #直リンク時の補正
   window.addEventListener('load', () => {
     if (location.hash) {
       const target = document.querySelector(location.hash);
       if (target) {
-        const offset = getHeaderOffset();
-        const y = target.getBoundingClientRect().top + window.pageYOffset - offset;
+        const y = target.getBoundingClientRect().top + window.pageYOffset - getHeaderOffset();
         window.scrollTo({ top: y });
       }
     }
   });
 
+  // 現在位置ハイライト（IntersectionObserver）
+  (function observeActiveHeading(){
+    const links = Array.from(document.querySelectorAll('#tocNav a[href^="#"]'));
+    if(!links.length) return;
+    const map = new Map();
+    links.forEach(a => { const id = a.getAttribute('href').slice(1); const h = document.getElementById(id); if (h) map.set(h, a); });
+
+    let active;
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (!en.isIntersecting) return;
+        active?.setAttribute('aria-current', 'false');
+        const link = map.get(en.target);
+        if (link) { link.setAttribute('aria-current', 'true'); active = link; }
+      });
+    }, { rootMargin: `-${getHeaderOffset()+8}px 0px -70% 0px`, threshold: [0,1] });
+
+    map.forEach((_, h) => io.observe(h));
+  })();
+
   // 本文中広告（H2直後に最大n枠）
   @if($post->show_ad_in_body && ($post->ad_in_body_max ?? 0) > 0)
   (function(){
-    const body = document.getElementById('postBody');
-    if (!body) return;
-
+    const body = document.getElementById('postBody'); if (!body) return;
     const h2s  = Array.from(body.querySelectorAll('h2'));
     const max  = Math.min({{ (int)($post->ad_in_body_max ?? 0) }}, 5);
-    const tpl  = document.getElementById('ad-in-body-tpl');
-    let inserted = 0;
-
+    const tpl  = document.getElementById('ad-in-body-tpl'); let inserted = 0;
     for (const h2 of h2s) {
-      if (inserted >= max) break;
-      if (!tpl?.content) break;
+      if (inserted >= max || !tpl?.content) break;
       const ad = document.importNode(tpl.content, true);
       if (h2.nextSibling) h2.parentNode.insertBefore(ad, h2.nextSibling);
       else h2.parentNode.appendChild(ad);

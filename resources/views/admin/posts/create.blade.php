@@ -18,7 +18,6 @@
         まずは<strong>タイトル</strong>と<strong>導入文</strong>、アイキャッチを設定してください。本文は下のエディタでブロックを使って素早く組み立てられます。
       </p>
     </div>
-
   </header>
 </section>
 
@@ -145,10 +144,12 @@
                data-ph="ここに本文を入力してください">{!! old('body') !!}</div>
         </div>
 
+        {{-- 本文とTOCの送信用 hidden --}}
         <textarea id="bodyField" name="body" class="hidden">{{ old('body') }}</textarea>
+        <input type="hidden" id="toc_json" name="toc_json" value='@json(old("toc_json", ""))'>
 
         <div class="px-4 py-2 text-xs text-gray-500 border-t bg-gray-50">
-          ※ 保存時に上のエディタ内容が <code>body</code> に入ります。
+          ※ 保存時に上のエディタ内容が <code>body</code> と <code>toc_json</code> に入ります。
         </div>
       </section>
     </main>
@@ -165,22 +166,30 @@
           </figure>
           <div class="mt-3 space-y-2">
             <label for="eyecatch" class="block text-sm text-gray-700">ファイルを選択</label>
-            <input type="file" name="eyecatch" id="eyecatch" accept="image/*" class="w-full text-sm">
+            <input type="file" name="eyecatch" id="eyecatch" accept="image/jpeg,image/png,image/webp" class="w-full text-sm">
             <p class="text-xs text-gray-500">jpg/jpeg/png/webp、<b>4MBまで</b>・16:9推奨（1200×675）</p>
           </div>
+        </section>
+
+        {{-- 目次プレビュー（任意） --}}
+        <section class="rounded-xl border bg-white p-5 sm:p-6">
+          <h2 class="font-semibold mb-3">目次プレビュー</h2>
+          <nav id="tocPreview" class="text-sm text-gray-700"></nav>
         </section>
 
         {{-- SEO --}}
         <section class="rounded-xl border bg-white shadow-sm p-5 sm:p-6">
           <h2 class="font-semibold mb-3">SEO</h2>
           <label class="block text-sm text-gray-700">メタタイトル（70文字）</label>
-          <input name="meta_title" value="{{ old('meta_title') }}" class="mt-1 w-full border rounded px-3 py-2" maxlength="70">
+          <input id="meta_title" name="meta_title" value="{{ old('meta_title') }}" class="mt-1 w-full border rounded px-3 py-2" maxlength="70">
+          <small class="text-xs text-gray-500">残り <span id="mt_rest">70</span> 文字</small>
           <label class="block text-sm text-gray-700 mt-3">メタディスクリプション（160文字）</label>
-          <textarea name="meta_description" rows="3" class="w-full border rounded px-3 py-2" maxlength="160">{{ old('meta_description') }}</textarea>
+          <textarea id="meta_desc" name="meta_description" rows="3" class="w-full border rounded px-3 py-2" maxlength="160">{{ old('meta_description') }}</textarea>
+          <small class="text-xs text-gray-500">残り <span id="md_rest">160</span> 文字</small>
           <div class="mt-3">
             <label class="block text-sm text-gray-700">スラッグ（URL）</label>
             <input id="slug" name="slug" value="{{ old('slug') }}" class="mt-1 w-full border rounded px-3 py-2" placeholder="例: my-article">
-            <p class="text-xs text-gray-500 mt-1">※ 自動生成はしません。必要に応じて手入力してください。</p>
+            <p class="text-xs text-gray-500 mt-1">※ 未入力のままならタイトルから自動生成します（保存時はサーバ側で最終バリデーション）。</p>
           </div>
         </section>
 
@@ -188,11 +197,13 @@
         <section class="rounded-xl border bg-white shadow-sm p-5 sm:p-6">
           <h2 class="font-semibold mb-3">広告設定</h2>
           <label class="inline-flex items-center gap-2 mb-2">
+            <input type="hidden" name="show_ad_under_lead" value="0">
             <input type="checkbox" name="show_ad_under_lead" value="1" {{ old('show_ad_under_lead', 1) ? 'checked' : '' }}>
             <span>導入文の直下に広告を表示</span>
           </label>
           <div class="mt-2">
             <label class="inline-flex items-center gap-2">
+              <input type="hidden" name="show_ad_in_body" value="0">
               <input type="checkbox" name="show_ad_in_body" value="1" {{ old('show_ad_in_body', 1) ? 'checked' : '' }}>
               <span>本文中（H2の直後）に広告を挿入</span>
             </label>
@@ -202,6 +213,7 @@
             </div>
           </div>
           <label class="inline-flex items-center gap-2 mt-3">
+            <input type="hidden" name="show_ad_below" value="0">
             <input type="checkbox" name="show_ad_below" value="1" {{ old('show_ad_below', 1) ? 'checked' : '' }}>
             <span>本文の下（記事末尾）に広告を表示</span>
           </label>
@@ -243,17 +255,22 @@
   }
   .editor-prose code{ background:#f6f8fa; padding:.15em .35em; border-radius:4px; }
   .editor-prose img{ max-width:100%; height:auto; border-radius:.5rem; }
+
   .tips { background:#f0f9ff; border:1px solid #bae6fd; border-radius:.75rem; padding:1rem; }
   .steps { counter-reset: step; }
   .steps li { counter-increment: step; margin:.5rem 0; }
   .steps li::marker { content: counter(step) ". "; font-weight:700; }
+
+  /* エディタplaceholder */
+  #editor:empty::before { content: attr(data-ph); color:#9ca3af; }
 </style>
 
 <script>
+// 小ユーティリティ
 const $ = (s) => document.querySelector(s);
 const exec = (cmd, value = null) => document.execCommand(cmd, false, value);
 
-/** 斜体禁止 */
+// 斜体禁止
 function disableItalicShortcut(el){
   el.addEventListener('keydown', (e)=>{
     const isMac = navigator.platform.toUpperCase().includes('MAC');
@@ -269,7 +286,7 @@ function stripItalics(root){
   });
 }
 
-/** 「実質的に空」かどうか（フロント判定） */
+// 「実質的に空」判定
 function hasMeaningfulContent(html){
   if(!html) return false;
   if (/<(img|video|iframe|pre|blockquote|ul|ol|h2|h3)\b/i.test(html)) return true;
@@ -279,11 +296,12 @@ function hasMeaningfulContent(html){
     .replace(/<!--[\s\S]*?-->/g,'')
     .replace(/<[^>]+>/g,'')
     .replace(/&nbsp;|\u00A0/g,' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g,'')
     .trim();
   return textish.length > 0;
 }
 
-/** 本文HTMLをhiddenに同期 */
+// 本文HTML→hidden同期
 function syncEditorToField(ed, field){
   let html = ed.innerHTML
     .replace(/^(?:\s|<br\s*\/?>)+/gi,'')
@@ -292,73 +310,129 @@ function syncEditorToField(ed, field){
   field.value = hasMeaningfulContent(html) ? html : '';
 }
 
-/** TOC（H2）—（必要あれば右側に作るときに利用） */
-function buildTOC(ed, toc){
-  const h2s = ed.querySelectorAll('h2');
-  if(!toc) return;
-  toc.innerHTML = '';
-  h2s.forEach((h2,idx)=>{
-    if(!h2.id) h2.id = 'sec-' + (idx+1);
-    const a = document.createElement('a');
-    a.href = '#'+h2.id;
-    a.textContent = h2.textContent.trim() || ('セクション'+(idx+1));
-    a.className = 'block hover:underline';
-    toc.appendChild(a);
-  });
+/* ========= ここから TOC 生成 ========= */
+
+// slugify（日本語を許容しつつハイフン化）
+function slugify(s){
+  if(!s) return '';
+  s = s.normalize('NFKC')
+       .trim()
+       .replace(/\s+/g,'-')
+       .toLowerCase()
+       .replace(/[^a-z0-9\u3040-\u30ff\u3400-\u9fff\-]+/g,'')
+       .replace(/\-+/g,'-')
+       .replace(/^\-+|\-+$/g,'');
+  return s || 'section';
 }
 
-/** 便利テンプレ（FAQなし） */
-const TPL = {
-  section: `<h2>見出し（例：フォロワーを増やす基本）</h2>
-<p>ここに本文。要点は箇条書きでもOK。</p>`,
-  tips: `<div class="tips">
-<strong>ポイント：</strong>
-<ul>
-  <li>具体例を1つ入れる</li>
-  <li>数値や比較で根拠を示す</li>
-  <li>次のアクションを提示</li>
-</ul>
-</div>`,
-  steps: `<ol class="steps">
-  <li><strong>準備：</strong> コンセプトとペルソナを決める</li>
-  <li><strong>設計：</strong> プロフィールとCTAを最適化</li>
-  <li><strong>運用：</strong> リール中心に週◯本投稿</li>
-</ol>`,
-  quote: `<blockquote><p>引用：重要な洞察やケーススタディを短く強調。</p></blockquote>`,
-  figure: `<figure class="figure">
-  <img src="" alt="説明画像" />
-  <figcaption>画像の説明（キャプション）</figcaption>
-</figure>`
-};
+// 見出しIDの付与（重複回避）
+function ensureHeadingId(el, used){
+  if(el.id && !used.has(el.id)){ used.add(el.id); return el.id; }
+  let base = slugify(el.textContent || '');
+  if(!base) base = 'section';
+  let id = base, i = 2;
+  while(used.has(id)) id = `${base}-${i++}`;
+  el.id = id; used.add(id);
+  return id;
+}
+
+// エディタから H2/H3 を抽出して正規化配列へ
+function buildTocData(ed){
+  const heads = ed.querySelectorAll('h2, h3');
+  const used  = new Set();
+  const rows  = [];
+  heads.forEach(h => {
+    const lvl = h.tagName === 'H2' ? 2 : 3;
+    const id  = ensureHeadingId(h, used);
+    const text= (h.textContent || '').trim();
+    rows.push({ id, text, level: (lvl <= 2 ? 2 : 3) });
+  });
+  return rows;
+}
+
+// TOCプレビュー描画（任意）
+function renderTocPreview(data, mount){
+  if(!mount) return;
+  mount.innerHTML = '';
+  if(!data.length) return;
+  const ol = document.createElement('ol');
+  ol.className = 'list-decimal pl-5 space-y-1';
+  let currentLi = null, ul = null;
+  data.forEach(row=>{
+    if(row.level === 2){
+      currentLi = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '#'+row.id; a.textContent = row.text || row.id; a.className = 'underline';
+      currentLi.appendChild(a);
+      ol.appendChild(currentLi);
+      ul = null;
+    }else{
+      if(!currentLi) return; // 先頭がH3なら無視
+      if(!ul){ ul = document.createElement('ul'); ul.className = 'pl-5 mt-1 space-y-1'; currentLi.appendChild(ul); }
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '#'+row.id; a.textContent = row.text || row.id; a.className = 'underline';
+      li.appendChild(a); ul.appendChild(li);
+    }
+  });
+  mount.appendChild(ol);
+}
+
+/* ========= ここまで TOC 生成 ========= */
 
 (function initCreatePost(){
-  const ed   = $('#editor');
-  const form = $('#postForm');
-  const field= $('#bodyField');
+  const ed    = $('#editor');
+  const form  = $('#postForm');
+  const field = $('#bodyField');
+  const tocF  = $('#toc_json');
+  const tocPreview = $('#tocPreview');
 
+  // 斜体禁止＋クリーン
   disableItalicShortcut(ed);
   stripItalics(ed);
   ed.addEventListener('input', ()=>stripItalics(ed));
   ed.addEventListener('paste', ()=>setTimeout(()=>stripItalics(ed),0));
 
+  // デバウンス
   const debounced = (()=>{ let t; return (fn)=>{ clearTimeout(t); t=setTimeout(fn,120);} })();
-  const onChange = ()=>{ syncEditorToField(ed, field); };
-  ed.addEventListener('input', ()=>debounced(onChange));
-  ed.addEventListener('blur', onChange);
-  syncEditorToField(ed, field);
 
+  // 本文・TOC 同期
+  const syncAll = ()=>{
+    syncEditorToField(ed, field);
+    const toc = buildTocData(ed);
+    if(tocF) tocF.value = JSON.stringify(toc);
+    renderTocPreview(toc, tocPreview);
+  };
+
+  ed.addEventListener('input', ()=>debounced(syncAll));
+  ed.addEventListener('blur', syncAll);
+  syncAll();
+
+  // ツールバー（format系）
   document.querySelectorAll('#toolbar [data-cmd]').forEach((b)=>{
     b.addEventListener('click', ()=>{
       exec(b.dataset.cmd);
       ed.focus();
-      debounced(onChange);
+      debounced(syncAll);
     });
   });
+
+  // ブロック変換時に見出しへIDを保証＆同期
   $('#blockSelect')?.addEventListener('change', (e)=>{
     const map = {P:'p',H2:'h2',H3:'h3',BLOCKQUOTE:'blockquote',PRE:'pre'};
     exec('formatBlock', map[e.target.value]||'p');
+
+    // カーソル付近の新しい見出しにID付与
+    const sel = window.getSelection();
+    const el  = sel?.anchorNode?.nodeType === 1 ? sel.anchorNode : sel?.anchorNode?.parentElement;
+    const h   = el?.closest?.('h2, h3');
+    if(h){
+      const all = ed.querySelectorAll('h2, h3');
+      const used = new Set(Array.from(all).map(x => x.id).filter(Boolean));
+      ensureHeadingId(h, used);
+    }
     ed.focus();
-    debounced(onChange);
+    debounced(syncAll);
   });
 
   // 画像アップロード
@@ -369,9 +443,11 @@ const TPL = {
     @if ($uploadUrl)
     try{
       const fd = new FormData(); fd.append('file', f);
+      const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+      const csrf = tokenMeta?.content || '';
       const res = await fetch(@json($uploadUrl), {
         method:'POST',
-        headers:{'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content},
+        headers: csrf ? {'X-CSRF-TOKEN': csrf} : {},
         body: fd
       });
       if(!res.ok) throw new Error('upload failed');
@@ -382,28 +458,50 @@ const TPL = {
     insertAsDataURL(f);
     @endif
     imgInput.value = '';
-    debounced(onChange);
+    debounced(syncAll);
   });
   function insertAsDataURL(file){
     const r = new FileReader();
-    r.onload = ()=>{ exec('insertImage', r.result); debounced(onChange); };
+    r.onload = ()=>{ exec('insertImage', r.result); debounced(syncAll); };
     r.readAsDataURL(file);
   }
 
   // テンプレ挿入
+  const TPL = {
+    section: `<h2>見出し（例：フォロワーを増やす基本）</h2>
+<p>ここに本文。要点は箇条書きでもOK。</p>`,
+    tips: `<div class="tips">
+<strong>ポイント：</strong>
+<ul>
+  <li>具体例を1つ入れる</li>
+  <li>数値や比較で根拠を示す</li>
+  <li>次のアクションを提示</li>
+</ul>
+</div>`,
+    steps: `<ol class="steps">
+  <li><strong>準備：</strong> コンセプトとペルソナを決める</li>
+  <li><strong>設計：</strong> プロフィールとCTAを最適化</li>
+  <li><strong>運用：</strong> リール中心に週◯本投稿</li>
+</ol>`,
+    quote: `<blockquote><p>引用：重要な洞察やケーススタディを短く強調。</p></blockquote>`,
+    figure: `<figure class="figure">
+  <img src="" alt="説明画像" />
+  <figcaption>画像の説明（キャプション）</figcaption>
+</figure>`
+  };
   document.querySelectorAll('#toolbar [data-insert]').forEach((b)=>{
     b.addEventListener('click', ()=>{
       const type = b.getAttribute('data-insert');
       const tpl = TPL[type] || '';
       document.execCommand('insertHTML', false, tpl);
       ed.focus();
-      debounced(onChange);
+      debounced(syncAll);
     });
   });
 
-  // submit 前チェック：本文が実質空なら止める
+  // submit 前チェック：本文が実質空なら止める＋最終同期＋スラッグ自動
   form.addEventListener('submit', (e)=>{
-    syncEditorToField(ed, field);
+    syncAll();
     const html = ed.innerHTML
       .replace(/^(?:\s|<br\s*\/?>)+/gi,'')
       .replace(/(?:\s|<br\s*\/?>)+$/gi,'')
@@ -412,15 +510,26 @@ const TPL = {
       e.preventDefault();
       alert('本文を入力してください。');
       ed.focus();
+      return;
+    }
+    // スラッグ未入力ならタイトルから自動生成
+    const title = $('#title'); const slug = $('#slug');
+    if(title && slug && !slug.value.trim()){
+      slug.value = slugify(title.value);
     }
   }, true);
 
-  // アイキャッチプレビュー
+  // アイキャッチプレビュー（MIME/サイズ検証付き）
   const ey = $('#eyecatch'), th = $('#eyThumb');
   if(ey && th){
     ey.addEventListener('change', ()=>{
       const f = ey.files?.[0];
       if(!f){ th.classList.add('hidden'); th.removeAttribute('src'); return; }
+      const okTypes = ['image/jpeg','image/png','image/webp'];
+      if(!okTypes.includes(f.type)){
+        alert('画像は JPG/PNG/WebP のみ対応です。');
+        ey.value=''; th.classList.add('hidden'); th.removeAttribute('src'); return;
+      }
       if(f.size > 4*1024*1024){
         alert('アイキャッチは 4MB 以下にしてください。');
         ey.value=''; th.classList.add('hidden'); th.removeAttribute('src'); return;
@@ -431,7 +540,7 @@ const TPL = {
     });
   }
 
-  // === ツールバーのstickyオフセットをヘッダー高さに合わせる ===
+  // ツールバーのstickyオフセットをヘッダー高さに合わせる
   function applyEditorStickyTop(){
     const header = document.querySelector('.site-header, .app-header, header[role="banner"]');
     const h = header ? header.offsetHeight : 0;
