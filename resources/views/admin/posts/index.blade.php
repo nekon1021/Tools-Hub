@@ -34,43 +34,60 @@
    *  - まれに絶対パス: "/var/www/…/storage/app/public/eyecatch/foo.jpg"
    */
   $toUrl = function ($v) {
-    if (empty($v)) return null;
+  if (empty($v)) return null;
 
-    // 1) 既にURL（http/https/protocol-relative/data）
-    if (Str::startsWith($v, ['http://','https://','//','data:'])) return $v;
+  // 0) 文字列化＆区切りを統一（Windows対策）
+  $v = trim((string)$v);
+  if ($v === '') return null;
+  $v = str_replace('\\', '/', $v);
 
-    // 2) 既に /storage で配信可能なパス
-    if (Str::startsWith($v, ['/storage/'])) {
-      return $v; // 例: /storage/eyecatch/foo.jpg
+  // 1) 既にURL（http/https/protocol-relative/data）
+  if (Str::startsWith($v, ['http://','https://','//','data:'])) {
+    return $v;
+  }
+
+  // 2) 既に /storage 配下の配信パス
+  if (Str::startsWith($v, ['/storage/'])) {
+    return $v;
+  }
+  if (Str::startsWith($v, ['storage/'])) {
+    return '/storage/' . ltrim(Str::after($v, 'storage/'), '/');
+  }
+
+  // 3) publicディスクのキーが "public/..." で来たとき
+  if (Str::startsWith($v, ['public/'])) {
+    $key = Str::after($v, 'public/');
+    return Storage::disk('public')->url($key);
+  }
+
+  // 4) サーバ内の絶対パスが混入している場合の救済
+  if (Str::startsWith($v, ['/'])) {
+    // (a) public_path() /storage/... に解決されたパス
+    // 例: /var/www/html/public/storage/posts/eyecatch/2025/09/xxx.webp
+    if (Str::contains($v, '/public/storage/')) {
+      return '/storage/' . ltrim(Str::after($v, '/public/storage/'), '/');
     }
-    if (Str::startsWith($v, ['storage/'])) {
-      // 例: storage/eyecatch/foo.jpg → /storage/eyecatch/foo.jpg
-      return '/storage/' . ltrim(Str::after($v, 'storage/'), '/');
+
+    // (b) storage_path('app/public/...') の実体パス
+    // 例: /var/www/html/storage/app/public/posts/eyecatch/2025/09/xxx.webp
+    if (Str::contains($v, '/storage/app/public/')) {
+      return '/storage/' . ltrim(Str::after($v, '/storage/app/public/'), '/');
     }
 
-    // 3) "public/…" を含むストレージキー（よくある）
-    if (Str::startsWith($v, ['public/'])) {
-      $key = Str::after($v, 'public/'); // Storage::disk('public')->url() は "public/" を要求しない
-      return Storage::disk('public')->url($key);
+    // (c) 稀に /app/public/ 直下に見える表現が来た場合の保険
+    if (Str::contains($v, '/app/public/')) {
+      return '/storage/' . ltrim(Str::after($v, '/app/public/'), '/');
     }
 
-    // 4) 物理パスが入っていた場合（最終手段）
-    if (Str::startsWith($v, ['/'])) {
-      // public_path 配下の /storage/ ならそのまま返す
-      if (Str::contains($v, '/public/storage/')) {
-        // サーバ上の絶対パス → 配信パスに寄せる
-        $pos = mb_stripos($v, '/public/storage/');
-        if ($pos !== false) {
-          return '/storage/' . ltrim(substr($v, $pos + strlen('/public/storage/')), '/');
-        }
-      }
-      // それ以外の絶対パスは扱えないので null（呼び出し側でプレースホルダへ）
-      return null;
-    }
+    // それ以外の絶対パスは配信できないので null（呼び出し側でプレースホルダへ）
+    return null;
+  }
 
-    // 5) それ以外の通常のキー（例: "eyecatch/foo.jpg"）
-    return Storage::disk('public')->url(ltrim($v, '/'));
-  };
+  // 5) それ以外の通常キー（相対パス）
+  // 例: "posts/eyecatch/2025/09/xxx.webp" → APP_URL/storage/... へ
+  return Storage::disk('public')->url(ltrim($v, '/'));
+};
+
 
   // ソートURL（同じ列なら昇降トグル）
   $mkSort = function (string $key) {
@@ -223,7 +240,7 @@
                   src="{{ $img1x }}"
                   srcset="{{ $img1x }} 80w, {{ $img2x }} 160w"
                   sizes="80px"
-                  width="160" height="90"
+                  width="80" height="45"
                   alt="{{ $p->title }} のサムネイル"
                   class="w-full h-full object-cover"
                   loading="lazy" decoding="async"

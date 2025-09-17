@@ -19,30 +19,20 @@ class PostStoreRequest extends FormRequest
 
             'slug'  => [
                 'nullable','string','max:200',
-                Rule::unique('posts','slug'),
+                Rule::unique('posts','slug')->where(fn($q) => $q->whereNull('deleted_at')),
                 // 「公開」ボタンのときだけ必須
                 Rule::requiredIf(fn() => $this->input('action') === 'publish'),
             ],
 
             'body' => [
-                'required',
-                'string',
+                'required','string',
                 function (string $attribute, $value, \Closure $fail) {
-                    if (!is_string($value)) {
-                        return $fail('本文は必須です。');
-                    }
-                    // 画像/動画/コード/引用/リスト/見出しがあればOK
-                    if (preg_match('#<(img|video|iframe|pre|blockquote|ul|ol|h2|h3)\b#i', $value)) {
-                        return;
-                    }
-                    // テキスト1文字以上
+                    if (!is_string($value)) return $fail('本文は必須です。');
+                    if (preg_match('#<(img|video|iframe|pre|blockquote|ul|ol|h2|h3)\b#i', $value)) return;
                     $text = strip_tags($value);
                     $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
                     $text = preg_replace('/\xC2\xA0|\h/u', ' ', $text);
-                    $text = trim($text ?? '');
-                    if (mb_strlen($text) < 1) {
-                        $fail('本文は必須です。');
-                    }
+                    if (mb_strlen(trim($text ?? '')) < 1) $fail('本文は必須です。');
                 },
             ],
 

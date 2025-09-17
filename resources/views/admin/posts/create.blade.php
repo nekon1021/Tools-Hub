@@ -440,6 +440,18 @@ function renderTocPreview(data, mount){
   $('#btnImage')?.addEventListener('click', ()=>imgInput.click());
   imgInput?.addEventListener('change', async ()=>{
     const f = imgInput.files?.[0]; if(!f) return;
+
+    // ★ サーバと整合する制約（mimes, max 4MB）を事前検証
+    const okTypes = ['image/jpeg','image/png','image/webp'];
+    if(!okTypes.includes(f.type)){
+      alert('画像は JPG/PNG/WebP のみ対応です。');
+      imgInput.value=''; return;
+    }
+    if(f.size > 4*1024*1024){
+      alert('画像は 4MB 以下にしてください。');
+      imgInput.value=''; return;
+    }
+
     @if ($uploadUrl)
     try{
       const fd = new FormData(); fd.append('file', f);
@@ -450,16 +462,26 @@ function renderTocPreview(data, mount){
         headers: csrf ? {'X-CSRF-TOKEN': csrf} : {},
         body: fd
       });
-      if(!res.ok) throw new Error('upload failed');
+      if(!res.ok){
+        const text = await res.text().catch(()=> '');
+        throw new Error('upload failed: '+res.status+' '+text);
+      }
       const json = await res.json();
+      if(!json?.location) throw new Error('invalid response');
       exec('insertImage', json.location);
-    }catch{ insertAsDataURL(f); }
+    }catch(err){
+      console.warn('[editor.upload]', err);
+      alert('画像アップロードに失敗しました。ログイン状態/CSP設定/アップロードAPIを確認してください。');
+    }
     @else
+    // ルートが無い環境のみ data:URL を暫定使用
     insertAsDataURL(f);
     @endif
+
     imgInput.value = '';
     debounced(syncAll);
   });
+
   function insertAsDataURL(file){
     const r = new FileReader();
     r.onload = ()=>{ exec('insertImage', r.result); debounced(syncAll); };
@@ -500,24 +522,68 @@ function renderTocPreview(data, mount){
   });
 
   // submit 前チェック：本文が実質空なら止める＋最終同期＋スラッグ自動
-  form.addEventListener('submit', (e)=>{
+  async function replaceDataUrlsWithUploads(ed){
+    const imgs = ed.querySelectorAll('img[src^="data:"]');
+    if(!imgs.length) return;
+    @if ($uploadUrl)
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    for (const img of imgs) {
+      try{
+        const blob = await (await fetch(img.src)).blob();
+        const mime = blob.type || 'image/png';
+        const okTypes = ['image/jpeg','image/png','image/webp'];
+        if(!okTypes.includes(mime) || blob.size > 4*1024*1024) continue; // 制約外はスキップ
+        const file = new File([blob], 'pasted.'+(mime.split('/')[1]||'png'), {type: mime});
+        const fd = new FormData(); fd.append('file', file);
+        const res = await fetch(@json($uploadUrl), {
+          method:'POST',
+          headers: token ? {'X-CSRF-TOKEN': token} : {},
+          body: fd
+        });
+        if(!res.ok) continue;
+        const { location } = await res.json();
+        if(location) img.src = location;
+      }catch(e){ console.warn('[editor.sanitize]', e); }
+    }
+    @endif
+  }
+
+  form.addEventListener('submit', async (e)=>{
+  e.preventDefault();                               // ← まず止める（重要）
+
+    // 連打防止（任意）
+    const submitter = e.submitter;                    // 押されたボタン
+    if (submitter) { submitter.disabled = true; }
+
+    // data: → 公開URL に置換
+    await replaceDataUrlsWithUploads(ed);
+
+    // 本文＆TOCを hidden に同期
     syncAll();
+
+    // 本文の有内容チェック
     const html = ed.innerHTML
       .replace(/^(?:\s|<br\s*\/?>)+/gi,'')
       .replace(/(?:\s|<br\s*\/?>)+$/gi,'')
       .trim();
     if(!hasMeaningfulContent(html)){
-      e.preventDefault();
       alert('本文を入力してください。');
       ed.focus();
+      if (submitter) { submitter.disabled = false; }
       return;
     }
-    // スラッグ未入力ならタイトルから自動生成
+
+    // スラッグ自動生成（未入力時）
     const title = $('#title'); const slug = $('#slug');
     if(title && slug && !slug.value.trim()){
       slug.value = slugify(title.value);
     }
+
+    // ここで実送信
+    form.submit();
   }, true);
+
+
 
   // アイキャッチプレビュー（MIME/サイズ検証付き）
   const ey = $('#eyecatch'), th = $('#eyThumb');
@@ -534,9 +600,8 @@ function renderTocPreview(data, mount){
         alert('アイキャッチは 4MB 以下にしてください。');
         ey.value=''; th.classList.add('hidden'); th.removeAttribute('src'); return;
       }
-      const r = new FileReader();
-      r.onload = (ev)=>{ th.src = ev.target.result; th.classList.remove('hidden'); };
-      r.readAsDataURL(f);
+      const url = URL.createObjectURL(f);
+      th.src = url; th.classList.remove('hidden');
     });
   }
 

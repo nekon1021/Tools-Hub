@@ -56,27 +56,71 @@
     }
   }
 
-  // --- アイキャッチURL ---
-  $ey = null;
-  if (filled($post->eyecatch_url))      $ey = $post->eyecatch_url;
-  elseif (filled($post->thumbnail_url)) $ey = $post->thumbnail_url;
-  elseif (filled($post->og_image_path)) {
-  $disk = config('filesystems.default', 'public');
+  // --- アイキャッチURL（安全に正規化） ---
+$toPublicUrl = function ($v) {
+  if ($v === null) return null;
 
-  // 直URLならそのまま
-  $v = trim((string)$post->og_image_path);
+  // 文字列化＋トリム＋区切り統一（Windows対策）
+  $v = trim((string)$v);
+  if ($v === '') return null;
+  $v = str_replace('\\', '/', $v);
+
+  // 既にURLならそのまま
   if (Str::startsWith($v, ['http://','https://','//'])) {
-    $ey = $v;
-  } else {
-    // よくある接頭辞をすべて剥がして「相対キー」に統一
-    $p = ltrim($v, '/');
-    $p = Str::after($p, 'app/public/'); // storage/app/public 実体
-    $p = Str::after($p, 'public/');     // DBに public/... と入っているケース
-    $p = Str::after($p, 'storage/');    // /storage/... と入っているケース
-
-    $ey = Storage::disk($disk)->url($p);
+    return $v;
   }
-}
+
+  // 既に /storage で配信可能なパス
+  if (Str::startsWith($v, ['/storage/'])) {
+    return $v;
+  }
+  if (Str::startsWith($v, ['storage/'])) {
+    return '/storage/' . ltrim(Str::after($v, 'storage/'), '/');
+  }
+
+  // サーバの絶対パス → /storage へ救済
+  if (Str::startsWith($v, ['/'])) {
+    if (Str::contains($v, '/public/storage/')) {
+      return '/storage/' . ltrim(Str::after($v, '/public/storage/'), '/');
+    }
+    if (Str::contains($v, '/storage/app/public/')) {
+      return '/storage/' . ltrim(Str::after($v, '/storage/app/public/'), '/');
+    }
+    if (Str::contains($v, '/app/public/')) {
+      return '/storage/' . ltrim(Str::after($v, '/app/public/'), '/');
+    }
+    // それ以外の絶対パスは不可
+    return null;
+  }
+
+  // 相対キーは publicディスク前提でURL化
+  // ※ ここは「常に public」を明示（controller で public に保存しているため）
+  return Storage::disk('public')->url(ltrim($v, '/'));
+};
+
+    // 既存のアイキャッチURL（優先順）
+    $ey = $toPublicUrl($post->eyecatch_url)
+   ?: $toPublicUrl($post->thumbnail_url)
+   ?: (function() use ($post, $toPublicUrl) {
+        $raw = $post->og_image_path;
+        if (!$raw) return null;
+
+        // 直URLならそのまま
+        $v = trim((string)$raw);
+        if (Str::startsWith($v, ['http://','https://','//'])) return $v;
+
+        // よくある接頭辞を剥がす → publicディスクでURL化
+        $p = ltrim($v, '/');
+        $p = Str::after($p, 'storage/app/public/');
+        $p = Str::after($p, 'app/public/');
+        $p = Str::after($p, 'public/');
+        $p = Str::after($p, 'storage/');
+        $p = trim($p, '/');
+        if ($p === '') return null;
+
+        return Storage::disk('public')->url($p);
+      })();
+
 @endphp
 
 @section('title', '記事詳細（管理）｜' . config('app.name'))
@@ -115,7 +159,15 @@
       @if($ey)
         <div class="rounded-xl border bg-white p-3 shadow-sm">
           <figure class="aspect-[16/9] w-full overflow-hidden rounded-lg bg-gray-100">
-            <img src="{{ $ey }}" alt="{{ $post->title }}" class="h-full w-full object-cover" width="1200" height="675">
+            @php
+              $phEy = 'data:image/svg+xml;base64,'.base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"></svg>');
+            @endphp
+            
+            <img src="{{ $ey }}" alt="{{ $post->title }}"
+                class="h-full w-full object-cover"
+                width="1200" height="675"
+                loading="lazy" decoding="async"
+                onerror="this.onerror=null; this.src='{{ $phEy }}';">
           </figure>
         </div>
       @endif
@@ -313,5 +365,13 @@
     }
   })();
   @endif
+
+  (function enhanceBodyImages(){
+    const imgs = document.querySelectorAll('#postBody img');
+    imgs.forEach(img => {
+      if (!img.hasAttribute('loading'))  img.setAttribute('loading','lazy');
+      if (!img.hasAttribute('decoding')) img.setAttribute('decoding','async');
+    });
+  })();
 </script>
 @endsection

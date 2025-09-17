@@ -16,6 +16,7 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use App\Http\Middleware\VerifyCsrfToken;
+use App\Http\Controllers\Admin\EditorUploadController;
 
 
 /*
@@ -44,6 +45,10 @@ Route::prefix('admin')->as('admin.')->middleware('robots.noindex')->group(functi
     Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+        Route::post('/editor/upload', [EditorUploadController::class, 'store'])
+            ->name('editor.upload')
+            ->middleware('throttle:12,1');
 
         // 記事の投稿
         Route::resource('posts', AdminPostController::class)

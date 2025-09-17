@@ -19,75 +19,62 @@ class PostUpdateRequest extends FormRequest
         $postId = $post?->id;
 
         return [
-            // 本文
             'title' => ['required','string','max:200'],
+
             'slug'  => [
-                'nullable',
-                'string',
-                'max:200',
-                Rule::unique('posts','slug')->ignore($postId),
-                // 公開ボタンを押した & 既存 slug が空 のときだけ必須
-                Rule::requiredIf(function () use ($post) {
-                    return $this->input('action') === 'publish'
-                        && blank($post?->slug);
-                }),
+                'nullable','string','max:200',
+                // ✅ ゴミ箱除外 + 自分は除外
+                Rule::unique('posts','slug')
+                    ->ignore($postId)
+                    ->where(fn($q) => $q->whereNull('deleted_at')),
+                // 公開ボタン時 & 既存slugが空なら必須
+                Rule::requiredIf(fn() => $this->input('action') === 'publish' && blank($post?->slug)),
+                // （任意）形式制限
+                // 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
             ],
 
-            // ← ここを store と同等の判定に
             'body'  => [
-                'required',
-                'string',
+                'required','string',
                 function (string $attribute, $value, \Closure $fail) {
-                    if (!is_string($value)) {
-                        return $fail('本文は必須です。');
-                    }
+                    if (!is_string($value)) return $fail('本文は必須です。');
                     $html = trim($value);
-
-                    // 画像/動画/iframe/コード/引用/リスト/見出しのどれかがあれば有内容
-                    if (preg_match('#<(img|video|iframe|pre|blockquote|ul|ol|h2|h3)\b#i', $html)) {
-                        return;
-                    }
-
-                    // 上記が無いときは素テキストをチェック
+                    if (preg_match('#<(img|video|iframe|pre|blockquote|ul|ol|h2|h3)\b#i', $html)) return;
                     $text = strip_tags($html);
                     $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                    $text = preg_replace('/\xC2\xA0|\h/u', ' ', $text); // &nbsp; 等を空白に
-                    $text = trim($text);
-
-                    if (mb_strlen($text) < 1) {
-                        $fail('本文は必須です。');
-                    }
+                    $text = preg_replace('/\xC2\xA0|\h/u', ' ', $text);
+                    if (mb_strlen(trim($text)) < 1) $fail('本文は必須です。');
                 },
             ],
 
             'lead'        => ['nullable','string','max:2000'],
             'category_id' => ['nullable','integer','exists:categories,id'],
 
-            // 画像（任意）
             'eyecatch' => ['nullable','image','mimes:jpeg,jpg,png,webp','max:4096'],
+            // （任意）比率を厳密にするなら
+            // 'eyecatch' => ['nullable','image','mimes:jpeg,jpg,png,webp','max:4096','dimensions:ratio=16/9'],
 
-            // 広告
-            'show_ad_under_lead' => ['sometimes','boolean'],
-            'show_ad_in_body'    => ['sometimes','boolean'],
+            // ✅ controllerで使っているので追加
+            'remove_eyecatch'    => ['boolean'],
+
+            // ✅ 既定値をマージしているので boolean だけでOK（sometimesは任意）
+            'show_ad_under_lead' => ['boolean'],
+            'show_ad_in_body'    => ['boolean'],
             'ad_in_body_max'     => ['nullable','integer','min:0','max:5'],
-            'show_ad_below'      => ['sometimes','boolean'],
+            'show_ad_below'      => ['boolean'],
 
-            // SEO
             'meta_title'       => ['nullable','string','max:70'],
             'meta_description' => ['nullable','string','max:160'],
-            'og_image_path'    => ['nullable','string','max:255'],
 
-            // 公開設定
+            // ✅ クライアントからは受け取らない（サーバで決定）
+            'og_image_path'    => ['prohibited'],
+
             'published_at' => ['nullable','date'],
-
-            // 送信ボタン（Enter送信で空の可能性あり）
             'action'       => ['nullable','in:save_draft,publish'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
-        // 空文字は null に
         $nullify = fn ($key) => ($v = $this->input($key)) === '' ? null : $v;
 
         $this->merge([
@@ -96,16 +83,16 @@ class PostUpdateRequest extends FormRequest
             'lead'             => $nullify('lead'),
             'meta_title'       => $nullify('meta_title'),
             'meta_description' => $nullify('meta_description'),
-            'og_image_path'    => $nullify('og_image_path'),
+            // ❌ og_image_path は禁止にしたのでマージしない
             'published_at'     => $nullify('published_at'),
             'category_id'      => $nullify('category_id'),
 
-            // checkbox 正規化（未送信=既定値）
+            // 既定値のマージ
             'show_ad_under_lead' => $this->boolean('show_ad_under_lead', false),
             'show_ad_in_body'    => $this->boolean('show_ad_in_body', true),
             'show_ad_below'      => $this->boolean('show_ad_below', true),
+            'remove_eyecatch'    => $this->boolean('remove_eyecatch', false),
 
-            // 数値（未入力は null）
             'ad_in_body_max'     => $this->filled('ad_in_body_max') ? (int) $this->input('ad_in_body_max') : null,
         ]);
     }
@@ -118,7 +105,6 @@ class PostUpdateRequest extends FormRequest
 
             'slug.unique'   => 'このスラッグは既に使用されています。',
             'slug.max'      => 'スラッグは200文字以内で入力してください。',
-            // Rule::requiredIf を使っているのでメッセージキーは「required」
             'slug.required' => '公開するにはスラッグが必要です。',
 
             'body.required' => '本文は必須です。',
@@ -133,6 +119,8 @@ class PostUpdateRequest extends FormRequest
             'published_at.date'  => '公開日時は有効な日付で入力してください。',
             'category_id.exists' => '指定されたカテゴリーが存在しません。',
             'action.in'          => '不正な操作です。',
+
+            'og_image_path.prohibited' => 'OG画像はアップロードからのみ設定できます。',
         ];
     }
 
@@ -144,13 +132,13 @@ class PostUpdateRequest extends FormRequest
             'body'               => '本文',
             'lead'               => '導入文',
             'eyecatch'           => 'アイキャッチ画像',
+            'remove_eyecatch'    => 'アイキャッチの削除',
             'show_ad_under_lead' => '導入文直下の広告',
             'show_ad_in_body'    => '本文中の広告',
             'ad_in_body_max'     => '本文中の広告最大枠数',
             'show_ad_below'      => '記事末尾の広告',
             'meta_title'         => 'メタタイトル',
             'meta_description'   => 'メタディスクリプション',
-            'og_image_path'      => 'OG画像パス',
             'published_at'       => '公開日時',
             'category_id'        => 'カテゴリー',
             'action'             => '操作',

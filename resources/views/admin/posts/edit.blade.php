@@ -59,31 +59,7 @@
         タイトル・導入文・アイキャッチを確認し、本文を編集してください。公開は右側のアクションから行えます。
       </p>
     </div>
-
-    {{-- Eyecatch（単一の枠に統一） --}}
-    <aside class="lg:col-span-1">
-      <div class="rounded-xl border bg-white p-3 shadow-sm">
-        <figure id="eyFrame" class="aspect-[16/9] w-full overflow-hidden rounded-lg bg-gray-100">
-          <img
-            id="eyImg"
-            @if ($ey)
-              src="{{ $ey }}"
-              data-original="{{ $ey }}"
-              class="h-full w-full object-cover"
-            @else
-              data-original=""
-              class="hidden h-full w-full object-cover"
-            @endif
-            alt="アイキャッチ"
-            width="1200" height="675">
-        </figure>
-        <div class="mt-3 space-y-2">
-          <label for="eyecatch" class="block text-sm text-gray-700">アイキャッチ画像</label>
-          <input type="file" name="eyecatch" id="eyecatch" accept="image/jpeg,image/png,image/webp" class="w-full text-sm">
-          <p class="text-xs text-gray-500">jpg/jpeg/png/webp、<b>4MBまで</b>・16:9推奨（1200×675）</p>
-        </div>
-      </div>
-    </aside>
+    {{-- ※ アイキャッチはフォーム内に移動しました --}}
   </header>
 </section>
 
@@ -219,9 +195,34 @@
       </section>
     </main>
 
-    {{-- 右カラム：SEO / 広告設定 / アクション --}}
+    {{-- 右カラム：SEO / 広告設定 / アクション（+ アイキャッチ ここに移動） --}}
     <aside>
       <div class="lg:sticky lg:top-24 space-y-4">
+
+        {{-- Eyecatch（フォーム内に移動） --}}
+        <section class="rounded-xl border bg-white p-3 shadow-sm">
+          <figure id="eyFrame" class="aspect-[16/9] w-full overflow-hidden rounded-lg bg-gray-100">
+            <img
+              id="eyImg"
+              @if ($ey)
+                src="{{ $ey }}"
+                data-original="{{ $ey }}"
+                class="h-full w-full object-cover"
+              @else
+                data-original=""
+                class="hidden h-full w-full object-cover"
+              @endif
+              alt="アイキャッチ"
+              width="1200" height="675">
+          </figure>
+          <div class="mt-3 space-y-2">
+            <label for="eyecatch" class="block text-sm text-gray-700">アイキャッチ画像</label>
+            <input type="file" name="eyecatch" id="eyecatch"
+                   accept="image/jpeg,image/png,image/webp" class="w-full text-sm">
+            <p class="text-xs text-gray-500">jpg/jpeg/png/webp、<b>4MBまで</b>・16:9推奨（1200×675）</p>
+          </div>
+        </section>
+
         {{-- 目次プレビュー（任意） --}}
         <section class="rounded-xl border bg-white p-5 sm:p-6">
           <h2 class="font-semibold mb-3">目次プレビュー</h2>
@@ -476,6 +477,18 @@ function renderTocPreview(data, mount){
   $('#btnImage').addEventListener('click', () => imgInput.click());
   imgInput.addEventListener('change', async () => {
     const f = imgInput.files?.[0]; if (!f) return;
+
+    // サーバと同じ制約で事前検証（mimes & max 4MB）
+    const okTypes = ['image/jpeg','image/png','image/webp'];
+    if(!okTypes.includes(f.type)){
+      alert('画像は JPG/PNG/WebP のみ対応です。');
+      imgInput.value=''; return;
+    }
+    if(f.size > 4*1024*1024){
+      alert('画像は 4MB 以下にしてください。');
+      imgInput.value=''; return;
+    }
+
     @if ($uploadUrl)
     try {
       const fd = new FormData(); fd.append('file', f);
@@ -486,59 +499,63 @@ function renderTocPreview(data, mount){
         headers: csrf ? { 'X-CSRF-TOKEN': csrf } : {},
         body: fd
       });
-      if (!res.ok) throw new Error('upload failed');
+      if (!res.ok) {
+        const text = await res.text().catch(()=> '');
+        throw new Error('upload failed: ' + res.status + ' ' + text);
+      }
       const json = await res.json();
+      if(!json?.location) throw new Error('invalid response');
       exec('insertImage', json.location);
-    } catch {
-      insertAsDataURL(f);
+    } catch (err) {
+      console.warn('[editor.upload]', err);
+      alert('画像アップロードに失敗しました。ログイン状態・CSP・アップロードAPI設定を確認してください。');
     }
     @else
+      // アップロードエンドポイントが無い場合だけ data: にフォールバック
       insertAsDataURL(f);
     @endif
+
     imgInput.value = '';
     debounced(syncAll);
   });
+
   function insertAsDataURL(file) {
     const r = new FileReader();
     r.onload = () => { exec('insertImage', r.result); debounced(syncAll); };
     r.readAsDataURL(file);
   }
 
-  // 挿入テンプレ
-  const TPL = {
-    section: `<h2>見出し（例：重要ポイント）</h2>
-<p>ここに本文。要点は箇条書きでもOK。</p>`,
-    tips: `<div class="tips">
-<strong>ポイント：</strong>
-<ul>
-  <li>具体例を1つ入れる</li>
-  <li>数値や比較で根拠を示す</li>
-  <li>次のアクションを提示</li>
-</ul>
-</div>`,
-    steps: `<ol class="steps">
-  <li><strong>準備：</strong> コンセプトとペルソナを決める</li>
-  <li><strong>設計：</strong> プロフィールとCTAを最適化</li>
-  <li><strong>運用：</strong> 週◯本投稿</li>
-</ol>`,
-    quote: `<blockquote><p>引用：重要な洞察を短く強調。</p></blockquote>`,
-    figure: `<figure class="figure">
-  <img src="" alt="説明画像" />
-  <figcaption>画像の説明（キャプション）</figcaption>
-</figure>`
-  };
-  document.querySelectorAll('#toolbar [data-insert]').forEach((b)=>{
-    b.addEventListener('click', ()=>{
-      const type = b.getAttribute('data-insert');
-      const tpl = TPL[type] || '';
-      document.execCommand('insertHTML', false, tpl);
-      ed.focus();
-      debounced(syncAll);
-    });
-  });
+  // ★ data:URL の <img> をアップロード → src を公開URLへ置換
+  async function replaceDataUrlsWithUploads(ed){
+    const imgs = ed.querySelectorAll('img[src^="data:"]');
+    if(!imgs.length) return;
+    @if ($uploadUrl)
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    for (const img of imgs) {
+      try{
+        const blob = await (await fetch(img.src)).blob();
+        const mime = blob.type || 'image/png';
+        const okTypes = ['image/jpeg','image/png','image/webp'];
+        if(!okTypes.includes(mime) || blob.size > 4*1024*1024) continue; // 制約外はスキップ
+        const file = new File([blob], 'pasted.'+(mime.split('/')[1]||'png'), {type: mime});
+        const fd = new FormData(); fd.append('file', file);
+        const res = await fetch(@json($uploadUrl), {
+          method:'POST',
+          headers: token ? {'X-CSRF-TOKEN': token} : {},
+          body: fd
+        });
+        if(!res.ok) continue;
+        const { location } = await res.json();
+        if(location) img.src = location;
+      }catch(e){ console.warn('[editor.sanitize]', e); }
+    }
+    @endif
+  }
 
-  // submit 前チェック（本文必須 & 最終同期）
-  form.addEventListener('submit', (e)=>{
+  // submit 前チェック（本文必須 & data:→公開URL 置換 & 最終同期）
+  form.addEventListener('submit', async (e)=>{
+    await replaceDataUrlsWithUploads(ed);
+
     syncAll();
     const html = ed.innerHTML
       .replace(/^(?:\s|<br\s*\/?>)+/gi,'')
@@ -574,9 +591,9 @@ function renderTocPreview(data, mount){
         ey.value=''; if (original) { eyImg.src = original; eyImg.classList.remove('hidden'); } else { eyImg.removeAttribute('src'); eyImg.classList.add('hidden'); }
         return;
       }
-      const r = new FileReader();
-      r.onload = (ev) => { eyImg.src = ev.target.result; eyImg.classList.remove('hidden'); };
-      r.readAsDataURL(f);
+      const objectUrl = URL.createObjectURL(f);
+      eyImg.src = objectUrl; eyImg.classList.remove('hidden');
+      // （任意）送信後やunload時に URL.revokeObjectURL(objectUrl) で解放可能
     });
   }
 

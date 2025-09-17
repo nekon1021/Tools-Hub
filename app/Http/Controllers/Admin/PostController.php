@@ -15,9 +15,26 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class PostController extends Controller
 {
+    private function normalizePublicKey(?string $v): ?string
+    {
+        if (!$v) return null;
+        $v = str_replace('\\', '/', trim($v));   // Windows対策
+        $v = ltrim($v, '/');
+
+        // ありがちな接頭辞を剥がして「publicディスクのキー」に統一
+        $v = \Illuminate\Support\Str::after($v, 'storage/app/public/');
+        $v = \Illuminate\Support\Str::after($v, 'app/public/');
+        $v = \Illuminate\Support\Str::after($v, 'public/');
+        $v = \Illuminate\Support\Str::after($v, 'storage/');
+
+        $v = trim($v, '/');
+        return $v !== '' ? $v : null;
+    }
+
     public function index(PostIndexRequest $request)
     {
         $filters = $request->validated();
@@ -93,9 +110,15 @@ class PostController extends Controller
                 // 'og_image_path'      => $v['og_image_path'] ?? null,
             ];
 
+            // 直上で [$isPublished, $publishedAt] を出しています → それを使う
+            $ym = \Illuminate\Support\Carbon::parse($publishedAt ?? now())->format('Y/m');
+
             if ($request->hasFile('eyecatch')) {
-                $data['og_image_path'] = $request->file('eyecatch')
-                    ->store('posts/eyecatch/' . now()->format('Y/m'), 'public');
+                // DBには相対パスが入る（Storage::url() で表示）
+                $stored = $request->file('eyecatch')->store("posts/eyecatch/{$ym}", 'public');
+                // store() は通常「相対キー」を返しますが、表記ゆれ対策で normalize
+                $data['og_image_path'] = $this->normalizePublicKey($stored);
+
             }
 
             return Post::create($data);
@@ -175,13 +198,28 @@ class PostController extends Controller
                 'meta_description'   => $v['meta_description'] ?? null,
             ];
 
+            // 既存 or 入力の公開日時を優先（未定義なら now）
+            $ym = \Illuminate\Support\Carbon::parse($publishedAt ?? $post->published_at ?? now())->format('Y/m');
+
+            // （任意）チェックボックス等で「画像を削除」するUIを用意している場合の処理
+            if ($request->boolean('remove_eyecatch')) {
+                if ($post->og_image_path) {
+                    $oldKey = $this->normalizePublicKey($post->og_image_path);
+                    if ($oldKey) Storage::disk('public')->delete($oldKey);
+                }
+                $data['og_image_path'] = null;
+            }
+            
+            // 新しい画像が来たら差し替え（上の削除指定より“後勝ち”にしたいなら順序調整）
             if ($request->hasFile('eyecatch')) {
                 if ($post->og_image_path) {
-                    Storage::disk('public')->delete($post->og_image_path);
+                    $oldKey = $this->normalizePublicKey($post->og_image_path);
+                    if ($oldKey) Storage::disk('public')->delete($oldKey);
                 }
-                $data['og_image_path'] = $request->file('eyecatch')
-                    ->store('posts/eyecatch/' . now()->format('Y/m'), 'public');
+                $stored = $request->file('eyecatch')->store("posts/eyecatch/{$ym}", 'public');
+                $data['og_image_path'] = $this->normalizePublicKey($stored);
             }
+
 
             $post->update($data);
         });
@@ -278,8 +316,11 @@ class PostController extends Controller
     private function deleteAttachedFiles(Post $post): void
     {
         if ($post->og_image_path) {
-        Storage::disk('public')->delete($post->og_image_path);    // ← 可変
-    }
+            $key = $this->normalizePublicKey($post->og_image_path);
+            if ($key) {
+                Storage::disk('public')->delete($key);
+            }
+        }
     }
 
     private function resolvePublication(string $action, $publishedAtInput): array
