@@ -11,17 +11,33 @@
     ?: ($post->lead ? Str::limit($post->lead, 120) : Str::limit(strip_tags($post->body), 160, '…'));
 
   // アイキャッチ（存在しなければダミーSVG）
-  $ey = !empty($post->og_image_path) ? Storage::disk('public')->url($post->og_image_path) : null;
-  if (!$ey) {
-      $ey = 'data:image/svg+xml;charset=UTF-8,' . rawurlencode(
-        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900'>
-           <rect width='1600' height='900' fill='#e5e7eb'/>
-           <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle'
-                 font-family='system-ui, -apple-system, Segoe UI, Roboto'
-                 font-size='56' fill='#9ca3af'>DUMMY IMAGE 16:9</text>
-         </svg>"
-      );
+  $ey = null;
+
+  $raw = trim((string)($post->og_image_path ?? ''));
+  if ($raw !== '') {
+    if (Str::startsWith($raw, ['http://','https://','data:'])) {
+      // すでに完全なURL or data: はそのまま使う
+      $ey = $raw;
+    } else {
+      // ディスク相対パスへ正規化してから public URL 化
+      $p = ltrim($raw, '/');
+      if (Str::startsWith($p, 'storage/')) $p = Str::after($p, 'storage/');
+      if (Str::startsWith($p, 'public/'))  $p = Str::after($p, 'public/');
+      $ey = Storage::disk('public')->url($p);
+    }
   }
+
+  if (!$ey) {
+    $ey = 'data:image/svg+xml;charset=UTF-8,' . rawurlencode(
+      "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900'>
+        <rect width='1600' height='900' fill='#e5e7eb'/>
+        <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle'
+              font-family='system-ui, -apple-system, Segoe UI, Roboto'
+              font-size='56' fill='#9ca3af'>DUMMY IMAGE 16:9</text>
+      </svg>"
+    );
+  }
+
 
   // OGP 用は絶対URL推奨（data: の場合はロゴへフォールバック）
   $ogImage = Str::startsWith($ey, 'data:')

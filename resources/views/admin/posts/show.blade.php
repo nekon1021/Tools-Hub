@@ -61,13 +61,22 @@
   if (filled($post->eyecatch_url))      $ey = $post->eyecatch_url;
   elseif (filled($post->thumbnail_url)) $ey = $post->thumbnail_url;
   elseif (filled($post->og_image_path)) {
-    $p = ltrim((string)$post->og_image_path, '/');
-    if (!Str::startsWith($p, ['http://','https://'])) {
-      if (Str::startsWith($p, 'storage/')) $p = Str::after($p, 'storage/');
-      $p = Storage::disk('public')->url($p);
-    }
-    $ey = $p;
+  $disk = config('filesystems.default', 'public');
+
+  // 直URLならそのまま
+  $v = trim((string)$post->og_image_path);
+  if (Str::startsWith($v, ['http://','https://','//'])) {
+    $ey = $v;
+  } else {
+    // よくある接頭辞をすべて剥がして「相対キー」に統一
+    $p = ltrim($v, '/');
+    $p = Str::after($p, 'app/public/'); // storage/app/public 実体
+    $p = Str::after($p, 'public/');     // DBに public/... と入っているケース
+    $p = Str::after($p, 'storage/');    // /storage/... と入っているケース
+
+    $ey = Storage::disk($disk)->url($p);
   }
+}
 @endphp
 
 @section('title', '記事詳細（管理）｜' . config('app.name'))
@@ -85,10 +94,13 @@
 
     <div class="ml-auto flex flex-wrap gap-2">
       <a href="{{ route('admin.posts.edit', $post) }}" class="px-3 py-1.5 border rounded">編集</a>
+
       @if($post->slug /* && 公開条件をここで出し分けたいなら併記 */)
-      <a href="{{ route('public.posts.show', ['slug' => $post->slug]) }}" target="_blank" rel="noopener">
-        公開ページ
-      </a>
+        <a href="{{ route('public.posts.show', ['slug' => $post->slug]) }}" target="_blank" rel="noopener">
+          公開ページ
+        </a>
+      @endif
+
       <a href="{{ route('admin.posts.index') }}" class="px-3 py-1.5 border rounded">一覧へ戻る</a>
     </div>
   </div>

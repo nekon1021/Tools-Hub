@@ -4,9 +4,10 @@
 @section('title', '記事編集｜' . config('app.name'))
 
 @php
+  use Illuminate\Support\Str;
   use Illuminate\Support\Facades\Storage;
 
-  // datetime-local 用（例: 2025-09-04T13:45）
+  // datetime-local 用
   $publishedLocal = old('published_at', optional($post->published_at)->format('Y-m-d\TH:i'));
 
   // 管理画面内の画像アップロードエンドポイント（任意）
@@ -14,11 +15,23 @@
     ? route('admin.editor.upload')
     : null;
 
+  // URL正規化
+  $normalizePublicUrl = function (?string $raw) {
+    $raw = trim((string)$raw);
+    if ($raw === '') return null;
+    if (Str::startsWith($raw, ['http://','https://','data:'])) return $raw;
+    $p = ltrim($raw, '/');
+    if (Str::startsWith($p, 'storage/')) $p = Str::after($p, 'storage/');
+    if (Str::startsWith($p, 'public/'))  $p = Str::after($p, 'public/');
+    return Storage::disk('public')->url($p);
+  };
+
   // 既存のアイキャッチURL
-  $ey = $post->eyecatch_url
-      ?? ($post->thumbnail_url ?? null)
-      ?? (!empty($post->og_image_path) ? Storage::disk('public')->url($post->og_image_path) : null);
+  $ey = $normalizePublicUrl($post->eyecatch_url)
+     ?? $normalizePublicUrl($post->thumbnail_url)
+     ?? $normalizePublicUrl($post->og_image_path);
 @endphp
+
 
 @section('content')
 <section class="mx-auto max-w-screen-xl px-4 pt-6 sm:pt-10">

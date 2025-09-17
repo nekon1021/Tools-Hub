@@ -90,7 +90,7 @@ class PostController extends Controller
                 'show_ad_below'      => $v['show_ad_below'] ?? true,
                 'meta_title'         => $v['meta_title'] ?? null,
                 'meta_description'   => $v['meta_description'] ?? null,
-                'og_image_path'      => $v['og_image_path'] ?? null,
+                // 'og_image_path'      => $v['og_image_path'] ?? null,
             ];
 
             if ($request->hasFile('eyecatch')) {
@@ -278,8 +278,8 @@ class PostController extends Controller
     private function deleteAttachedFiles(Post $post): void
     {
         if ($post->og_image_path) {
-            Storage::disk('public')->delete($post->og_image_path);
-        }
+        Storage::disk('public')->delete($post->og_image_path);    // ← 可変
+    }
     }
 
     private function resolvePublication(string $action, $publishedAtInput): array
