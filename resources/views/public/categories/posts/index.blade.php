@@ -9,7 +9,8 @@
 @section('title', $category->name . ' の記事一覧｜' . config('app.name'))
 
 @section('meta')
-  <meta name="description" content="{{ $category->name }}の公開記事一覧">
+  <meta name="description" content="{{ $category->name }}の公開記事まとめ。基礎知識から実践ノウハウ・最新トレンドまでを分かりやすく整理。目的に合う記事がすぐ見つかります。
+">
   <link rel="canonical" href="{{ route('public.categories.posts.index', $category->slug) }}">
 @endsection
 
