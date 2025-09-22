@@ -144,6 +144,8 @@ return [
         // 'store' => 'redis',
     ],
 
+    'canonical_url' => env('APP_CANONICAL_URL', env('APP_URL', 'http://localhost')),
+
     /*
     |--------------------------------------------------------------------------
     | Autoloaded Service Providers

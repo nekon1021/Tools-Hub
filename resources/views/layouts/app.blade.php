@@ -7,33 +7,51 @@
     {{-- タイトル（子で @section('title', '...') を推奨） --}}
     <title>@yield('title', config('app.name'))</title>
 
-    {{-- ▼ ここで一度だけ本文を決定して全メタに使い回す（DRY） --}}
-    @php
-      $desc  = trim($__env->yieldContent('meta_description', 'Tools Hubは、文字数カウントなどの無料ツールを提供します。'));
-      $title = trim($__env->yieldContent('title', config('app.name')));
-      $url   = request()->has('page') ? url()->full() : url()->current();
-      $ogImg = url(asset('tools_hub_logo.png'));
-    @endphp
+    {{-- ▼ 一度だけ本文を決定して全メタに使い回す（DRY） --}}
+  @php
+    $desc  = trim($__env->yieldContent('meta_description', 'Tools Hubは、文字数カウントなどの無料ツールを提供します。'));
+    $title = trim($__env->yieldContent('title', config('app.name')));
 
-    {{-- HTML 用 meta --}}
-    <meta name="description" content="{{ $desc }}">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+    // 正規URL：nullでも落ちないフォールバック
+    $base = rtrim((string) (config('app.canonical_url') ?? config('app.url') ?? 'http://localhost'), '/');
+    $path = request()->getPathInfo();   // /about 等
+    $allowQuery = ['page'];             // 許可クエリ（必要に応じて追加）
+    $qs = collect(request()->query())
+          ->filter(fn($v,$k)=>in_array($k,$allowQuery, true) && $v!=='')
+          ->map(fn($v,$k)=>$k.'='.urlencode($v))
+          ->implode('&');
+    $canonical = $base . $path . ($qs ? ('?'.$qs) : '');
 
-    {{-- robots は通常 index。必要ページは子で @section('robots') を定義 --}}
-    @hasSection('robots')
-      @yield('robots')
-    @endif
+    // 画像と OGP
+    $ogImg = url(asset('tools_hub_logo.png'));
+  @endphp
 
-    {{-- OGP/Twitter（デフォルト。子で上書き可） --}}
-    <meta property="og:type" content="@yield('og_type', 'website')">
-    <meta property="og:site_name" content="{{ config('app.name', 'Tools Hub') }}">
-    <meta property="og:title" content="@yield('og_title', $title)">
-    <meta property="og:description" content="@yield('og_description', $desc)">
-    <meta property="og:url" content="{{ $url }}">
-    <meta property="og:image" content="@yield('og_image', $ogImg)">
-    <meta name="twitter:image" content="@yield('twitter_image', View::getSections()['og_image'] ?? $ogImg)">
-    <meta name="twitter:card" content="summary_large_image">
+  {{-- HTML 用 meta --}}
+  <meta name="description" content="{{ $desc }}">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 
+  {{-- robots は通常 index。必要ページは子で @section('robots') を定義 --}}
+  @hasSection('robots')
+    @yield('robots')
+  @else
+    <meta name="robots" content="index,follow">
+  @endif
+
+  {{-- OGP/Twitter（デフォルト。子で上書き可） --}}
+  <meta property="og:type" content="@yield('og_type', 'website')">
+  <meta property="og:site_name" content="{{ config('app.name', 'Tools Hub') }}">
+  <meta property="og:title" content="@yield('og_title', $title)">
+  <meta property="og:description" content="@yield('og_description', $desc)">
+  <meta property="og:url" content="{{ $canonical }}">
+  <meta property="og:image" content="@yield('og_image', $ogImg)">
+  @php $sections = View::getSections(); @endphp
+  <meta name="twitter:image" content="@yield('twitter_image', $sections['og_image'] ?? $ogImg)">
+  <meta name="twitter:card" content="summary_large_image">
+
+  {{-- canonical（1 本に統一） --}}
+  <link rel="canonical" href="{{ $canonical }}">
+
+    
     {{-- GSC: 所有権メタ（設定があれば出す） --}}
     @if($gsc = config('services.gsc.verification'))
       <meta name="google-site-verification" content="{{ $gsc }}">
@@ -67,9 +85,6 @@
     {{-- Favicon / Apple Touch Icon --}}
     <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('tools_hub_logo.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('tools_hub_logo.png') }}"/>
-
-    {{-- canonical：?page= だけ許容、他クエリは正規化で除外 --}}
-    <link rel="canonical" href="{{ $url }}">
 
     {{-- ページ毎に<head>へ追記したい時用 --}}
     @stack('head')

@@ -1,0 +1,12 @@
+# www → 非www を恒久リダイレクト（HTTP 両対応）
+www.toolshub.test, http://www.toolshub.test {
+    redir http://toolshub.test{uri} 308
+}
+
+# 非www 本体
+toolshub.test, http://toolshub.test {
+    encode zstd gzip
+    root * /var/www/html/public
+    php_fastcgi :9000
+    file_server
+}

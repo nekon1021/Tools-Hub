@@ -12,7 +12,7 @@ return [
 
     // AdSense 用
     'adsense' => [
-        'client' => env('ADSENSE_CLIENT', ''), // 例: ca-pub-xxxxxxxxxxxxxxxx
+        'client' => env('ADSENSE_CLIENT'), // 例: ca-pub-xxxxxxxxxxxxxxxx
     ],
 
     // ★ 追加：AdSense の data-ad-slot を論理IDにマッピング
