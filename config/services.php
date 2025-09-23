@@ -35,6 +35,13 @@ return [
         'enabled' => env('GA_ENABLED', false),
         'measurement_id' => env('GA_MEASUREMENT_ID'),
     ],
+
+    'adsense' => [
+        'enabled' => env('ADSENSE_ENABLED', false),
+        'client' => env('ADSENSE_CLIENT_ID'),
+        'adtest' => filter_var(env('ADSENSE_ADTEST', false), FILTER_VALIDATE_BOOL),
+    ],
+
     'clarity' => [
         'project_id' => env('CLARITY_PROJECT_ID'),
     ],
