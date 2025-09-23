@@ -38,7 +38,7 @@ return [
 
     'adsense' => [
         'enabled' => env('ADSENSE_ENABLED', false),
-        'client' => env('ADSENSE_CLIENT_ID'),
+        'client' => env('ADSENSE_CLIENT'),
         'adtest' => filter_var(env('ADSENSE_ADTEST', false), FILTER_VALIDATE_BOOL),
     ],
 
