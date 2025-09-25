@@ -61,7 +61,7 @@
 
   {{-- 2カラム（PCでサイドレール） --}}
   <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] items-start">
-    <article class="mx-auto max-w-3xl lg:col-start-1 lg:row-start-1">
+    <article class="mx-auto max-w-3xl lg:mx-0 lg:max-w-none min-w-0 lg:col-start-1 lg:row-start-1">
       <header class="mb-6">
         <h2 class="text-3xl font-bold mb-2">{{ $post->title }}</h2>
         <div class="text-sm text-gray-500 space-x-2">
@@ -80,7 +80,7 @@
             <span>｜作成者: {{ $post->user->name }}</span>
           @endif
         </div>
-        <figure class="mt-4">
+        <figure class="mt-4 overflow-hidden">
           <img src="{{ $ey }}" alt="{{ $post->title }}" class="w-full aspect-[16/9] object-cover rounded">
         </figure>
 
