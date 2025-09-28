@@ -60,7 +60,7 @@
   </div>
 
   {{-- 2カラム（PCでサイドレール） --}}
-  <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] items-start">
+  <article class="mx-auto max-w-3xl min-w-0">
     <article class="mx-auto max-w-3xl lg:mx-0 lg:max-w-none min-w-0 lg:col-start-1 lg:row-start-1">
       <header class="mb-6">
         <h2 class="text-3xl font-bold mb-2">{{ $post->title }}</h2>
@@ -104,8 +104,8 @@
     </article>
 
     {{-- ★ 右サイドレール：モバイル＝記事下 / PC＝右サイド --}}
-    <aside class="block mt-8 lg:mt-0 lg:col-start-2 lg:row-start-1" role="complementary" aria-label="サイドコンテンツ">
-      <div class="w-full mx-auto space-y-6 lg:sticky lg:top-4 lg:w-[300px]">
+    <aside class="block mt-8" role="complementary" aria-label="サイドコンテンツ">
+      <div class="w-full mx-auto max-w-3xl space-y-6">
 
         {{-- カテゴリ --}}
         <section aria-labelledby="cat-heading" class="rounded border bg-white">
