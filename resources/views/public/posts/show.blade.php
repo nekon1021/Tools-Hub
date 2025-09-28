@@ -134,9 +134,41 @@
 <style>
   .editor-prose { color:#111827; }
   .editor-prose p { margin:.7em 0; line-height:1.8; }
-  .editor-prose h2 { font-weight:700; line-height:1.35; margin:1.25em 0 .6em; font-size:1.5rem; }
-  @media (min-width:640px){ .editor-prose h2{ font-size:1.75rem; } }
-  .editor-prose h3 { font-weight:600; line-height:1.45; margin:1.1em 0 .5em; font-size:1.25rem; }
+  /* H2：文字下ハイライト＋細い下線で目立たせる */
+  .editor-prose h2{
+    position:relative;
+    font-weight:800;
+    line-height:1.3;
+    margin:1.6em 0 .7em;
+    font-size:1.9rem;
+    letter-spacing:-0.01em;
+
+    /* 文字下の色面（幅はテキスト幅） */
+    background:linear-gradient(transparent 70%, #fde68a80 0); /* amber-200 / 50% */
+
+    /* うっすら下線（テキスト幅） */
+    text-decoration-line: underline;
+    text-decoration-thickness:.14em;
+    text-underline-offset:.18em;
+    text-decoration-color:#fcd34d; /* amber-300 */
+  }
+  @media (min-width:640px){
+    .editor-prose h2{ font-size:2.1rem; }
+  }
+
+  /* H3：左の色帯＋薄い背景でH2との階層差をはっきり */
+  .editor-prose h3{
+    position:relative;
+    font-weight:700;
+    line-height:1.4;
+    margin:1.1em 0 .6em;
+    font-size:1.25rem;
+    padding:.25rem .5rem .25rem .75rem;
+    border-left:.28rem solid #fcd34d;  /* amber-300 */
+    background:#fde68a80;              /* amber-200 / 50% */
+    border-radius:.25rem;
+  }
+
 
   .editor-prose ul, .editor-prose ol { margin:.6em 0 .8em; padding-left:1.4em; }
   .editor-prose a { color:#2563eb; text-decoration:underline; }
