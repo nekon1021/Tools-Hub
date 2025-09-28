@@ -143,9 +143,6 @@
     font-size:1.9rem;
     letter-spacing:-0.01em;
 
-    /* 文字下の色面（幅はテキスト幅） */
-    background:linear-gradient(transparent 70%, #fde68a80 0); /* amber-200 / 50% */
-
     /* うっすら下線（テキスト幅） */
     text-decoration-line: underline;
     text-decoration-thickness:.14em;
