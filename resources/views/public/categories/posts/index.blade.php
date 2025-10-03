@@ -9,9 +9,23 @@
 @section('title', $category->name . ' の記事一覧｜' . config('app.name'))
 
 @section('meta')
-  <meta name="description" content="{{ $category->name }}の公開記事まとめ。基礎知識から実践ノウハウ・最新トレンドまでを分かりやすく整理。目的に合う記事がすぐ見つかります。
-">
-  <link rel="canonical" href="{{ route('public.categories.posts.index', $category->slug) }}">
+  @php
+    $baseUrl  = route('public.categories.posts.index', $category->slug); // 絶対URL（APP_URL 準拠）
+    $isSearch = filled(request('q'));
+    $page     = (int) request('page', 1);
+
+    // 検索結果は noindex + canonical は基底URLへ
+    // 通常一覧は各ページを self-canonical（page=1はクエリ無し）
+    $canonical = $isSearch
+      ? $baseUrl
+      : ($page > 1 ? $baseUrl.'?page='.$page : $baseUrl);
+  @endphp
+
+  <meta name="description" content="{{ $category->name }}の公開記事まとめ。基礎知識から実践ノウハウ・最新トレンドまでを分かりやすく整理。目的に合う記事がすぐ見つかります。">
+  <link rel="canonical" href="{{ $canonical }}">
+  @if($isSearch)
+    <meta name="robots" content="noindex,follow">
+  @endif
 @endsection
 
 @section('content')
@@ -126,6 +140,31 @@
     </div>
 
     <div class="mt-8">{{ $posts->links() }}</div>
+
+    <aside class="block mt-8" role="complementary" aria-label="サイドコンテンツ">
+      <div class="w-full mx-auto max-w-3xl space-y-6">
+
+        {{-- カテゴリ --}}
+        <section aria-labelledby="cat-heading" class="rounded border bg-white">
+          <h3 id="cat-heading" class="px-3 py-2 text-sm font-semibold border-b">カテゴリ</h3>
+          @if(!empty($sidebarCategories) && $sidebarCategories->count())
+            <ul class="p-2 text-sm">
+              @foreach($sidebarCategories as $cat)
+                <li>
+                  <a href="{{ route('public.categories.posts.index', $cat->slug) }}"
+                    class="flex items-center justify-between px-2 py-2 rounded hover:bg-gray-50">
+                    <span>{{ $cat->name }}</span>
+                    <span class="text-xs text-gray-500">{{ $cat->posts_count }}</span>
+                  </a>
+                </li>
+              @endforeach
+            </ul>
+          @else
+            <div class="px-3 py-4 text-sm text-gray-500">カテゴリがありません。</div>
+          @endif
+        </section>
+      </div>
+    </aside>
   @else
     {{-- 空状態 --}}
     <div class="rounded-2xl border bg-white p-10 text-center">
