@@ -34,7 +34,14 @@ class CategoryController extends Controller
 
         $posts = $query->paginate(12)->withQueryString();
 
-        return view('public.categories.posts.index', compact('category', 'posts'));
+        $sidebarCategories = Category::withCount(['posts' => function ($q) {
+            $q->published();
+        }])
+        ->orderByDesc('posts_count')
+        ->limit(20)
+        ->get(['id', 'name', 'slug']);
+
+        return view('public.categories.posts.index', compact('category', 'posts', 'sidebarCategories'));
     }
 
     /**
