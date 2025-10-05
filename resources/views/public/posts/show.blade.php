@@ -50,21 +50,102 @@
 @section('meta_description', $metaDesc)
 @section('og_image', $ogImage)
 
+@section('og_type', 'article')
+@push('head')
+  <meta property="article:published_time" content="{{ $post->published_at?->toIso8601String() }}">
+  <meta property="article:modified_time"  content="{{ ($post->updated_at ?? $post->published_at)?->toIso8601String() }}">
+@endpush
+
+@push('jsonld')
+@php
+  $pub = optional($post->published_at)->toIso8601String();
+  $mod = optional($post->updated_at)->toIso8601String() ?: $pub;
+  $img = $ogImage ?? url(asset('tools_hub_logo.png'));
+  $cat = optional($post->category);
+@endphp
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "articleSection": {!! json_encode(optional($post->category)->name ?? '記事') !!},
+  "inLanguage": "ja",
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "{{ url()->current() }}" },
+  "url": "{{ url()->current() }}",
+  "headline": {!! json_encode($post->meta_title ?: $post->title) !!},
+  "description": {!! json_encode($post->meta_description ?: \Illuminate\Support\Str::limit(strip_tags($post->lead ?: $post->body), 160)) !!},
+  "image": [{
+    "@type": "ImageObject",
+    "url": "{{ $img }}",
+    "width": 1600,
+    "height": 900
+  }],
+  "datePublished": "{{ $pub }}",
+  "dateModified": "{{ $mod }}",
+  "author": { "@type": "Person", "name": {!! json_encode(optional($post->user)->name ?? 'Admin') !!} },
+  "publisher": {
+    "@type": "Organization",
+    "name": "{{ config('app.name', 'Tools Hub') }}",
+    "logo": { "@type": "ImageObject", "url": "{{ url(asset('tools_hub_logo.png')) }}" }
+  }
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "ホーム", "item": "{{ url('/') }}" }
+    @if($cat)
+    ,{ "@type": "ListItem", "position": 2, "name": {!! json_encode($cat->name) !!}, "item": "{{ route('public.categories.posts.index', $cat->slug) }}" }
+    ,{ "@type": "ListItem", "position": 3, "name": {!! json_encode($post->title) !!} }
+    @else
+    ,{ "@type": "ListItem", "position": 2, "name": {!! json_encode($post->title) !!} }
+    @endif
+  ]
+}
+</script>
+@endpush
+
 @section('content')
 <div class="container mx-auto max-w-5xl px-4 py-6">
   <div class="mb-6 flex flex-wrap items-center gap-3">
-    <h1 class="text-2xl font-bold">記事詳細</h1>
+    <span class="text-sm text-gray-500" aria-hidden="true">記事詳細</span>
     <div class="ml-auto">
       <a href="{{ route('public.posts.index') }}" class="px-3 py-1.5 border rounded">一覧へ戻る</a>
     </div>
   </div>
 
+
   {{-- 2カラム（PCでサイドレール） --}}
-  <article class="mx-auto max-w-3xl min-w-0">
-    <article class="mx-auto max-w-3xl lg:mx-0 lg:max-w-none min-w-0 lg:col-start-1 lg:row-start-1">
-      <header class="mb-6">
-        <h2 class="text-3xl font-bold mb-2">{{ $post->title }}</h2>
-        <div class="text-sm text-gray-500 space-x-2">
+  <article class="mx-auto max-w-3xl lg:mx-0 lg:max-w-none min-w-0 lg:col-start-1 lg:row-start-1">
+    <header class="mb-6">
+      {{-- パンくず（H1の直前） --}}
+      <nav aria-label="パンくず" class="text-sm text-gray-500 mb-2">
+        <ol class="flex flex-wrap gap-1" itemscope itemtype="https://schema.org/BreadcrumbList">
+          <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+            <a href="{{ url('/') }}" itemprop="item"><span itemprop="name">ホーム</span></a>
+            <meta itemprop="position" content="1" />
+          </li>
+          @if($post->category)
+            <li>›</li>
+            <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+              <a href="{{ route('public.categories.posts.index', $post->category->slug) }}" itemprop="item">
+                <span itemprop="name">{{ $post->category->name }}</span>
+              </a>
+              <meta itemprop="position" content="2" />
+            </li>
+          @endif
+          <li>›</li>
+          <li aria-current="page" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+            <span itemprop="name">{{ $post->title }}</span>
+            <meta itemprop="position" content="{{ $post->category ? 3 : 2 }}" />
+          </li>
+        </ol>
+      </nav>
+      
+      <h1 class="text-3xl font-bold mb-2">{{ $post->title }}</h1>
+        <div class="text-sm text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1">
           @if($post->published_at)
             <span>公開日時: {{ $post->published_at->format('Y-m-d H:i') }}</span>
           @endif
@@ -81,7 +162,16 @@
           @endif
         </div>
         <figure class="mt-4 overflow-hidden">
-          <img src="{{ $ey }}" alt="{{ $post->title }}" class="w-full aspect-[16/9] object-cover rounded">
+          <img
+            src="{{ $ey }}"
+            alt="{{ $post->title }}"
+            class="w-full aspect-[16/9] object-cover rounded"
+            width="1600" height="900"
+            sizes="(max-width: 768px) 100vw, 800px"
+            fetchpriority="high"
+            decoding="async"
+            loading="eager"
+          />
         </figure>
 
         {{-- ▼ 目次（フロント生成、初期は非表示） --}}
@@ -101,7 +191,13 @@
       <div id="postBody" class="editor-prose mb-8">
         {!! $post->body !!}
       </div>
-    </article>
+
+      {{-- 関連記事 & 次に読む --}}
+      <x-related-posts :posts="$relatedPosts ?? collect()" />
+      <x-next-read :post="$nextPost ?? null"
+                  :fallback="$fallbackPost ?? null"
+                  :fallbackUrl="$fallbackUrl ?? null" />
+  </article>
 
     {{-- ★ 右サイドレール：モバイル＝記事下 / PC＝右サイド --}}
     <aside class="block mt-8" role="complementary" aria-label="サイドコンテンツ">
@@ -128,7 +224,6 @@
         </section>
       </div>
     </aside>
-  </div>
 </div>
 
 <style>
@@ -192,7 +287,14 @@
 
 
 <script>
-(() => {
+  document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#postBody img').forEach(img => {
+    if (!img.hasAttribute('loading'))  img.setAttribute('loading','lazy');
+    if (!img.hasAttribute('decoding')) img.setAttribute('decoding','async');
+  });
+});
+
+;(() => {
   const body = document.getElementById('postBody');
   const toc  = document.getElementById('postToc');
   if (!body || !toc) return;
@@ -323,6 +425,5 @@
   });
 })();
 </script>
-
 
 @endsection

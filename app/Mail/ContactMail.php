@@ -15,8 +15,11 @@ class ContactMail extends Mailable
 
     public function build()
     {
-        $subject = 'お問い合わせ: ' . ($this->payload['subject'] ?: '件名なし');
+        $subject = '【Tools Hub】お問い合わせ: ' . ($this->payload['subject'] ?: '件名なし');
+        
         return $this->subject($subject)
-            ->view('emails.contact'); // 下のBlade
+            ->replyTo($this->payload['email'])
+            ->text('emails.contact_received_plain')
+            ->with(['data' => $this->payload]);
     }
 }

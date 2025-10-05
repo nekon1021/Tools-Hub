@@ -131,4 +131,5 @@ return [
         ],
     ],
 
+    'contact_to' => env('MAIL_CONTACT_TO', null),
 ];

@@ -57,10 +57,7 @@ class PostController extends Controller
         // 記事本体（作成者・カテゴリを事前読込）
         $post = Post::query()
             ->published()
-            ->with([
-                'user:id,name',
-                'category:id,name,slug',
-            ])
+            ->with(['user:id,name','category:id,name,slug'])
             ->where('slug', $slug)
             ->firstOrFail();
 
@@ -70,17 +67,73 @@ class PostController extends Controller
             now()->addMinutes(10),
             function () {
                 return Category::query()
-                    ->withCount([
-                        'posts as posts_count' => function ($q) {
-                            $q->published();
-                        }
-                    ])
+                    ->withCount(['posts as posts_count' => fn($q) => $q->published()])
                     ->orderBy('name')
-                    ->get(['id', 'name', 'slug']);
+                    ->get(['id','name','slug']);
             }
         );
 
-        // ★ 最新記事は渡さない
-        return view('public.posts.show', compact('post', 'sidebarCategories'));
+        /* ▼ 追加：関連記事（同カテゴリの最新6件：自分除外） */
+        $relatedPosts = Cache::remember(
+            "post:{$post->id}:related",
+            now()->addMinutes(30),
+            function () use ($post) {
+                $q = Post::query()->published()->where('id','!=',$post->id);
+                if ($post->category_id) {
+                    $q->where('category_id', $post->category_id);
+                }
+                return $q->latest('published_at')
+                        ->limit(6)
+                        ->get(['id','slug','title','published_at']);
+            }
+        );
+
+        /* ▼ 追加：次に読む（同カテゴリで「今より新しい」→無ければ同カテゴリの最新）
+        カテゴリが無い記事は全体最新でフォールバック */
+        $nextPostQuery = Post::query()->published()->where('id','!=',$post->id);
+        if ($post->category_id) {
+            $nextPostQuery->where('category_id', $post->category_id);
+        }
+        $nextPost = (clone $nextPostQuery)
+            ->where('published_at','>', $post->published_at ?? now()->subCentury())
+            ->orderBy('published_at','asc')
+            ->first(['id','slug','title']);
+
+        if (!$nextPost) {
+            $nextPost = (clone $nextPostQuery)
+                ->latest('published_at')
+                ->first(['id','slug','title']);
+        }
+
+        /* ▼ 追加：フォールバック候補（カテゴリ別“推し記事” → 全体ピラー → 一覧URL） */
+        $categorySlug = optional($post->category)->slug;
+
+        // config/next_read.php に設定（無ければ null でスキップ）
+        $fallbackSlug = $categorySlug ? config("next_read.by_category.$categorySlug") : null;
+        if (!$fallbackSlug) {
+            $fallbackSlug = config('next_read.fallback_slug'); // 全体共通ピラー（任意）
+        }
+
+        $fallbackPost = $fallbackSlug
+            ? Post::query()->published()->where('slug', $fallbackSlug)->first(['id','slug','title'])
+            : null;
+
+        // 最後の保険URL（カテゴリがあればカテゴリ一覧、なければ記事一覧）
+        $fallbackUrl = $fallbackPost
+            ? null
+            : ($categorySlug
+                ? route('public.categories.posts.index', $categorySlug)
+                : route('public.posts.index'));
+
+        // ここだけで return（下の古い return は削除）
+        return view('public.posts.show', [
+            'post'              => $post,
+            'sidebarCategories' => $sidebarCategories,
+            'relatedPosts'      => $relatedPosts,
+            'nextPost'          => $nextPost,
+            'fallbackPost'      => $fallbackPost,
+            'fallbackUrl'       => $fallbackUrl,
+        ]);
     }
+
 }

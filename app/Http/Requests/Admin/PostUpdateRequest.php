@@ -4,6 +4,8 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
+
 
 class PostUpdateRequest extends FormRequest
 {
@@ -23,14 +25,14 @@ class PostUpdateRequest extends FormRequest
 
             'slug'  => [
                 'nullable','string','max:200',
-                // ✅ ゴミ箱除外 + 自分は除外
-                Rule::unique('posts','slug')
-                    ->ignore($postId)
-                    ->where(fn($q) => $q->whereNull('deleted_at')),
+                // 半角英数字とハイフンのみ・連続/先頭/末尾ハイフン不可
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                // 物理ユニーク（ゴミ箱含めて衝突NG）に合わせる
+                Rule::unique('posts','slug')->ignore($postId),
                 // 公開ボタン時 & 既存slugが空なら必須
                 Rule::requiredIf(fn() => $this->input('action') === 'publish' && blank($post?->slug)),
-                // （任意）形式制限
-                // 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                // （任意）予約語ブロック
+                // Rule::notIn(config('seo.reserved_slugs', ['admin','login','api','posts'])),
             ],
 
             'body'  => [
@@ -75,11 +77,21 @@ class PostUpdateRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        // 入力スラッグを ascii に正規化
+        $s = trim((string) $this->input('slug', ''));
+        $slug = $s === '' ? null : Str::slug($s, '-');
+
+        if ($slug !== null) {
+            $slug = preg_replace('/-+/', '-', $slug); // 連続ハイフン圧縮
+            $slug = trim($slug, '-');                 // 先頭/末尾ハイフン除去
+            $slug = $slug !== '' ? $slug : null;
+        }
+
         $nullify = fn ($key) => ($v = $this->input($key)) === '' ? null : $v;
 
         $this->merge([
             'title'            => trim((string) $this->input('title','')),
-            'slug'             => ($s = trim((string) $this->input('slug',''))) === '' ? null : $s,
+            'slug'             => $slug,
             'lead'             => $nullify('lead'),
             'meta_title'       => $nullify('meta_title'),
             'meta_description' => $nullify('meta_description'),
@@ -106,6 +118,7 @@ class PostUpdateRequest extends FormRequest
             'slug.unique'   => 'このスラッグは既に使用されています。',
             'slug.max'      => 'スラッグは200文字以内で入力してください。',
             'slug.required' => '公開するにはスラッグが必要です。',
+            'slug.regex'    => 'スラッグは半角英数字とハイフン（-）のみ、先頭末尾のハイフン不可、連続ハイフン不可です。',
 
             'body.required' => '本文は必須です。',
 

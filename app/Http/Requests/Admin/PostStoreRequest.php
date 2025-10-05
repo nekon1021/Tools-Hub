@@ -4,6 +4,8 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
+
 
 class PostStoreRequest extends FormRequest
 {
@@ -19,8 +21,9 @@ class PostStoreRequest extends FormRequest
 
             'slug'  => [
                 'nullable','string','max:200',
-                Rule::unique('posts','slug')->where(fn($q) => $q->whereNull('deleted_at')),
-                // 「公開」ボタンのときだけ必須
+                // 英数字・ハイフンのみ、連続ハイフン不可、先頭末尾ハイフン不可
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                Rule::unique('posts','slug'),
                 Rule::requiredIf(fn() => $this->input('action') === 'publish'),
             ],
 
@@ -62,11 +65,23 @@ class PostStoreRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $s = trim((string) $this->input('slug', ''));
+
+        // 未入力なら null、入力があれば ascii スラッグ化
+        $slug = $s === '' ? null : Str::slug($s, '-'); // 例: "日本語 テスト" -> "ri-ben-yu-tesuto"
+
+        // ダブりや先頭/末尾のハイフンを掃除（念のため）
+        if ($slug !== null) {
+            $slug = preg_replace('/-+/', '-', $slug);
+            $slug = trim($slug, '-');
+            $slug = $slug !== '' ? $slug : null;
+        }
+
         $nullify = fn ($key) => ($v = $this->input($key)) === '' ? null : $v;
 
         $this->merge([
             'title'             => trim((string) $this->input('title', '')),
-            'slug'              => ($s = trim((string) $this->input('slug', ''))) === '' ? null : $s,
+            'slug' => $slug,
             'lead'              => $nullify('lead'),
             'meta_title'        => $nullify('meta_title'),
             'meta_description'  => $nullify('meta_description'),
@@ -93,6 +108,7 @@ class PostStoreRequest extends FormRequest
             'slug.unique'      => 'このスラッグは既に使用されています。',
             'slug.max'         => 'スラッグは200文字以内で入力してください。',
             'slug.required'    => '公開するにはスラッグが必要です。', // Rule::requiredIf でもこのキーで出ます
+            'slug.regex'       => 'スラッグは半角英数字とハイフン（-）のみ、先頭末尾のハイフン不可、連続ハイフン不可です。',
 
             'body.required' => '本文は必須です。',
 
