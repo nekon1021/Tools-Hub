@@ -1,12 +1,12 @@
 @props(['posts' => collect()])
 
 @if($posts->count())
-<section class="mt-10">
+<section class="mt-10 p-4 bg-blue-50 border rounded-lg">
   <h2 class="text-xl font-bold mb-3">関連記事</h2>
   <ul class="grid sm:grid-cols-2 gap-3">
     @foreach($posts as $p)
       <li class="border rounded p-3 hover:bg-gray-50">
-        <a href="{{ route('public.posts.show', $p->slug) }}" class="font-semibold hover:underline">
+        <a href="{{ route('public.posts.show', $p->slug) }}" class="text-blue-800 font-semibold underline">
           {{ $p->title }}
         </a>
         @if($p->published_at)

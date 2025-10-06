@@ -110,7 +110,29 @@
 @section('content')
 <div class="container mx-auto max-w-5xl px-4 py-6">
   <div class="mb-6 flex flex-wrap items-center gap-3">
-    <span class="text-sm text-gray-500" aria-hidden="true">記事詳細</span>
+      {{-- パンくず（H1の直前） --}}
+      <nav aria-label="パンくず" class="text-sm text-gray-500">
+        <ol class="flex flex-wrap gap-1" itemscope itemtype="https://schema.org/BreadcrumbList">
+          <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+            <a href="{{ url('/') }}" itemprop="item"><span itemprop="name">ホーム</span></a>
+            <meta itemprop="position" content="1" />
+          </li>
+          @if($post->category)
+            <li>></li>
+            <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+              <a href="{{ route('public.categories.posts.index', $post->category->slug) }}" itemprop="item">
+                <span itemprop="name">{{ $post->category->name }}</span>
+              </a>
+              <meta itemprop="position" content="2" />
+            </li>
+          @endif
+          <li>></li>
+          <li aria-current="page" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+            <span itemprop="name">{{ $post->title }}</span>
+            <meta itemprop="position" content="{{ $post->category ? 3 : 2 }}" />
+          </li>
+        </ol>
+      </nav>
     <div class="ml-auto">
       <a href="{{ route('public.posts.index') }}" class="px-3 py-1.5 border rounded">一覧へ戻る</a>
     </div>
@@ -120,30 +142,6 @@
   {{-- 2カラム（PCでサイドレール） --}}
   <article class="mx-auto max-w-3xl lg:mx-0 lg:max-w-none min-w-0 lg:col-start-1 lg:row-start-1">
     <header class="mb-6">
-      {{-- パンくず（H1の直前） --}}
-      <nav aria-label="パンくず" class="text-sm text-gray-500 mb-2">
-        <ol class="flex flex-wrap gap-1" itemscope itemtype="https://schema.org/BreadcrumbList">
-          <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-            <a href="{{ url('/') }}" itemprop="item"><span itemprop="name">ホーム</span></a>
-            <meta itemprop="position" content="1" />
-          </li>
-          @if($post->category)
-            <li>›</li>
-            <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-              <a href="{{ route('public.categories.posts.index', $post->category->slug) }}" itemprop="item">
-                <span itemprop="name">{{ $post->category->name }}</span>
-              </a>
-              <meta itemprop="position" content="2" />
-            </li>
-          @endif
-          <li>›</li>
-          <li aria-current="page" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-            <span itemprop="name">{{ $post->title }}</span>
-            <meta itemprop="position" content="{{ $post->category ? 3 : 2 }}" />
-          </li>
-        </ol>
-      </nav>
-      
       <h1 class="text-3xl font-bold mb-2">{{ $post->title }}</h1>
         <div class="text-sm text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1">
           @if($post->published_at)
@@ -194,9 +192,6 @@
 
       {{-- 関連記事 & 次に読む --}}
       <x-related-posts :posts="$relatedPosts ?? collect()" />
-      <x-next-read :post="$nextPost ?? null"
-                  :fallback="$fallbackPost ?? null"
-                  :fallbackUrl="$fallbackUrl ?? null" />
   </article>
 
     {{-- ★ 右サイドレール：モバイル＝記事下 / PC＝右サイド --}}
