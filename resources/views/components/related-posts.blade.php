@@ -1,7 +1,7 @@
 @props(['posts' => collect()])
 
 @if($posts->count())
-<section class="mt-10 p-4 bg-blue-50 border rounded-lg">
+<section class="mt-10">
   <h2 class="text-xl font-bold mb-3">関連記事</h2>
   <ul class="grid sm:grid-cols-2 gap-3">
     @foreach($posts as $p)

@@ -190,7 +190,7 @@
         {!! $post->body !!}
       </div>
 
-      {{-- 関連記事 & 次に読む --}}
+      {{-- 関連記事 --}}
       <x-related-posts :posts="$relatedPosts ?? collect()" />
   </article>
 
