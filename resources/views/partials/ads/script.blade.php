@@ -8,7 +8,7 @@
       ? request()->cookie('ad_consent') === '1'
       : true;
 
-  $client = config('ads.adsense.client'); // config/ads.php と統一
+  $client = trim((string) config('ads.adsense.client')); // config/ads.php と統一
 @endphp
 
 @once

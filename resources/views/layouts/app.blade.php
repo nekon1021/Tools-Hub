@@ -106,6 +106,7 @@
 
   {{-- 公開側のみ：広告スクリプト --}}
   @unless (request()->routeIs('admin.*'))
+    @includeIf('partials.ads.consent')
     @include('partials.ads.script')
   @endunless
 
