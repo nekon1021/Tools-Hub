@@ -1,1 +1,1 @@
-# Placeholder ads.txt for Google AdSense verification
+google.com, pub-1351890523789404, DIRECT, f08c47fec0942fa0
