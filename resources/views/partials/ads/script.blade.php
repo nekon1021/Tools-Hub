@@ -1,17 +1,24 @@
 @php
-  $enabled    = (bool) config('ads.enabled', false);
-  $network    = config('ads.network', 'adsense'); // 'adsense' or 'gam'
-  $isPublic   = !request()->routeIs('admin.*') && !request()->is('admin/*');
+  $enabled   = (bool) config('ads.enabled', false);
+  $network   = config('ads.network', 'adsense'); // 'adsense' or 'gam'
+  $isPublic  = !request()->routeIs('admin.*') && !request()->is('admin/*');
 
-  // 同意管理をまだ入れていないなら true にしておいてOK
-  $hasConsent = request()->cookie('ad_consent') === '1' ?: true;
+  // 審査中は true でOK。運用開始後は ads.require_consent と cookie で制御
+  $hasConsent = config('ads.require_consent', false)
+      ? request()->cookie('ad_consent') === '1'
+      : true;
+
+  $client = config('ads.adsense.client'); // config/ads.php と統一
 @endphp
 
 @once
-  @if (app()->environment('production') && $isPublic && $enabled && $hasConsent)
+  {{-- 審査中は environment 条件を外す/緩める --}}
+  @if ($isPublic && $enabled && $hasConsent)
     {{-- AdSense --}}
-    @if ($network === 'adsense' && ($client = config('ads.adsense.client')))
-      <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ urlencode($client) }}" crossorigin="anonymous"></script>
+    @if ($network === 'adsense' && $client)
+      <script async
+        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ urlencode($client) }}"
+        crossorigin="anonymous"></script>
       <script>window.adsbygoogle = window.adsbygoogle || [];</script>
     @endif
 
