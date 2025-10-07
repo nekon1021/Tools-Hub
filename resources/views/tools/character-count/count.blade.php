@@ -91,7 +91,7 @@
 
       <section
         id="liveCount"
-        class="grid gap-2 rounded p-4 md:grid-cols-2 place-items-center text-center"
+        class="grid gap-2 rounded p-4 place-items-center text-center"
         data-server-chars="{{ $r['chars'] ?? 0 }}"
         data-server-chars-no-ln="{{ $r['chars_no_ln'] ?? 0 }}"
         data-server-chars-no-ws="{{ $r['chars_no_ws'] ?? 0 }}"
