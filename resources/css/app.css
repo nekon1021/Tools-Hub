@@ -2,4 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-@import "./tool-nav.css";
+/* =========================
+   共通（テーマ変数＆基礎スタイル）
+   ========================= */
+@layer components {
+  .tool-nav {
+    --bg: #ffffff;
+    --fg: #1f2937;              /* text-gray-800相当 */
+    --border: rgba(0, 0, 0, .12);
+    --hover: rgba(0, 0, 0, .04);
+    --bg-image: none;
+
+    background: var(--bg) no-repeat center/cover;
+    background-image: var(--bg-image);
+    color: var(--fg);
+    border-color: var(--border);
+  }
+
+  /* ユーティリティ（テーマ連動） */
+  .text-var   { color: var(--fg); }
+  .border-var { border: 1px solid var(--border); }
+  .tool-nav .hover-bg:hover { background-color: var(--hover) !important; }
+
+  .border-y-var { border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+
+  /* =========================
+    テーマ（必要に応じて追加）
+    ========================= */
+  /* 文字ツール（青） */
+  .theme-text  {
+    --bg: #eaf2ff;
+    --fg: #0f3b82;
+    --border: rgba(30, 64, 175, .25);
+    --hover: rgba(37, 99, 235, .08);
+    --bg-image: none;
+  }
+
+  /* 画像ツール（エメラルド） */
+  .theme-image {
+    --bg: #ecfdf5;              /* emerald-50 */
+    --fg: #065f46;              /* emerald-800 */
+    --border: rgba(5, 150, 105, .25);
+    --hover: rgba(5, 150, 105, .08);
+    --bg-image: none;
+  }
+
+  /* 開発者ツール（パープル） */
+  .theme-dev   {
+    --bg: #f5f3ff;
+    --fg: #5b21b6;
+    --border: rgba(147, 51, 234, .25);
+    --hover: rgba(147, 51, 234, .08);
+    --bg-image: none;
+  }
+
+  /* ビジネス（アンバー） */
+  .theme-biz   {
+    --bg: #fffbeb;
+    --fg: #8a6a04;
+    --border: rgba(245, 158, 11, .25);
+    --hover: rgba(245, 158, 11, .10);
+    --bg-image: none;
+  }
+
+  /* 既定（セピア・古紙） */
+  .theme-sepia {
+    --bg: #f4ecd8;
+    --fg: #704214;
+    --border: rgba(112, 66, 20, .40);
+    --hover: rgba(230, 215, 179, .85);
+    --bg-image: url('https://www.toptal.com/designers/subtlepatterns/patterns/aged-paper.jpg');
+  }
+
+  /* ドロップ時のカーソル */
+  #dropzone.dragover { cursor: copy; }
+}
