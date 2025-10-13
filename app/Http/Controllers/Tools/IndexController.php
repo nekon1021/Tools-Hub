@@ -16,8 +16,13 @@ class IndexController extends Controller
                 'route' => route('tools.charcount'),
                 'description' => 'テキストの文字数や行数を即座にカウントできます。',
             ],
+            [
+                'name' => '画像圧縮',
+                'route' => route('tools.image.compressor'),
+                'description' => 'JPEGやPNG画像のファイルサイズをオンラインで圧縮します。',
+            ],
             // 今後追加予定のツール
-            // ['name' => 'SEOチェック', 'route' => route('tools.seo'), 'description' => 'ページのSEO要素を簡単に確認できます。'],
+            
         ];
         
         return view('tools.index',compact('tools'));

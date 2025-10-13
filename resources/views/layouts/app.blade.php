@@ -102,7 +102,7 @@
   <link rel="apple-touch-icon" href="{{ asset('tools_hub_logo.png') }}"/>
 
   {{-- Vite（外部接続の温めの後に読み込む） --}}
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
+  @vite(entrypoints: ['resources/css/app.css', 'resources/js/app.js'])
 
   {{-- 公開側のみ：広告スクリプト --}}
   @unless (request()->routeIs('admin.*'))
@@ -133,8 +133,27 @@
   @yield('meta')
 </head>
 <body class="min-h-dvh bg-white text-gray-900">
+  @php
+    // 子ビューから明示指定があれば最優先（例: @section('theme','image')）
+    $themeFromChild = trim($__env->yieldContent('theme', ''));
+
+    // ルート名で自動判定（Laravelの routeIs を使用）
+    $themeAuto = match (true) {
+      request()->routeIs('tools.image.*')     => 'image',
+      request()->routeIs('tools.charcount*')  => 'text',
+      default                                 => 'sepia',
+    };
+
+    $raw = $themeFromChild !== '' ? $themeFromChild : $themeAuto;
+
+    // 予期しない値を弾く（XSS/typo対策）
+    $allowed = ['text','image','dev','biz','sepia'];
+    $theme   = in_array($raw, $allowed, true) ? $raw : 'sepia';
+  @endphp
+
+
   {{-- ヘッダー --}}
-  @include('layouts.navigation')
+  @include('layouts.navigation', ['theme' => $theme])
 
   {{-- メインコンテンツ --}}
   <main class="border">

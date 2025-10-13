@@ -16,29 +16,27 @@
   }
 </style>
 
-<nav class="border-gray-300 sepia-photo-hd">
+<nav class="tool-nav theme-{{ $theme ?? 'sepia' }}">
   <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
     <a href="/" class="flex items-center space-x-3 rtl:space-x-reverse">
       <span class="self-center text-2xl font-semibold whitespace-nowrap">Tools Hub</span>
     </a>
-    <div class="flex items-center md:order-2 space-x-1 md:space-x-0 rtl:space-x-reverse">
 
+    <div class="flex items-center md:order-2 space-x-1 md:space-x-0 rtl:space-x-reverse">
       <!-- メニュー -->
       <button type="button" id="menuBtn"
-        data-dropdown-toggle="language-dropdown-menu"
-        class="hidden md:inline-flex items-center font-medium justify-center px-4 py-2 text-sm rounded-lg cursor-pointer sepia-hover"
-        style="border: 1px solid rgba(112, 66, 20, 0.4);">
+        class="hidden md:inline-flex items-center font-medium justify-center px-4 py-2 text-sm rounded-lg cursor-pointer
+               text-var border-var hover-bg">
         メニュー
       </button>
 
-      <!-- Dropdown -->
+      <!-- Dropdown（※使うならJSでtoggle対象にしてOK） -->
       <div id="language-dropdown-menu"
-           class="z-50 hidden my-4 text-base list-none rounded-lg shadow-sm sepia-photo-hd"
-           style="border:1px solid rgba(112, 66, 20, 0.4);">
+           class="z-50 hidden my-4 text-base list-none rounded-lg shadow-sm tool-nav border-var">
         <ul class="py-2 font-medium" role="none">
           <li>
             <a href="#"
-               class="block px-4 py-2 text-sm rounded sepia-hover"
+               class="block px-4 py-2 text-sm rounded text-var hover-bg"
                role="menuitem">
               ホーム
             </a>
@@ -47,38 +45,37 @@
       </div>
 
       <!-- ハンバーガーボタン -->
-      <button data-collapse-toggle="navbar-language" id="burgerBtn" type="button"
-        class="inline-flex items-center p-2 w-10 h-10 justify-center text-sm rounded-lg md:hidden sepia-hover"
-        style="border:1px solid rgba(112, 66, 20, 0.4);">
+      <button id="burgerBtn" type="button"
+        class="inline-flex items-center p-2 w-10 h-10 justify-center text-sm rounded-lg md:hidden
+               text-var border-var hover-bg">
         <span class="sr-only">Open main menu</span>
         <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 17 14">
-          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
-                stroke-width="2" d="M1 1h15M1 7h15M1 13h15"/>
+          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M1 1h15M1 7h15M1 13h15"/>
         </svg>
       </button>
     </div>
   </div>
 
   @php
-  $to = auth()->check() && auth()->user()->is_admin
-      ? route('admin.posts.index')
-      : route('public.posts.index');
-@endphp
+    $to = auth()->check() && auth()->user()->is_admin
+        ? route('admin.posts.index')
+        : route('public.posts.index');
+  @endphp
 
   <!-- ドロップダウン（全幅） -->
   <div id="mega-menu-full-dropdown"
-       class="hidden mt-1 border-gray-300 shadow-xs sepia-photo-hd"
-       style="border-top:1px solid rgba(112, 66, 20, 0.4); border-bottom:1px solid rgba(112, 66, 20, 0.4);">
+       class="hidden mt-1 shadow-sm tool-nav border-y-var">
     <div class="grid max-w-screen-xl px-4 py-5 mx-auto sm:grid md:px-6">
       <ul>
         <li>
-          <a href="{{ $to }}" class="block p-3 rounded-lg font-semibold sepia-hover">
+          <a href="{{ $to }}" class="block p-3 rounded-lg font-semibold text-var hover-bg">
             記事
           </a>
         </li>
 
         <li>
-          <a href="{{ route('sitemap.html') }}" class="block p-3 rounded-lg font-semibold sepia-hover">
+          <a href="{{ route('sitemap.html') }}" class="block p-3 rounded-lg font-semibold text-var hover-bg">
             サイトマップ
           </a>
         </li>
@@ -87,12 +84,8 @@
           <li>
             <form action="{{ route('admin.logout')}}" method="POST" class="contents">
               @csrf
-              <button
-                  type="submit"
-                  class="px-3 py-2 rounded hover:bg-gray-100"
-                  style="border:1px solid rgba(112, 66, 20, 0.4);"
-                  >
-                  ログアウト
+              <button type="submit" class="px-3 py-2 rounded text-var border-var hover-bg">
+                ログアウト
               </button>
             </form>
           </li>

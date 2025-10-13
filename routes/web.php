@@ -8,8 +8,12 @@ use App\Http\Controllers\Front\ContactController;
 use App\Http\Controllers\Front\PostController as FrontPostController;
 use App\Http\Controllers\HtmlSitemapController;
 use App\Http\Controllers\SitemapController;
+
+// Tools
 use App\Http\Controllers\Tools\Count\CountController;
 use App\Http\Controllers\Tools\IndexController;
+use App\Http\Controllers\Tools\ImageCompressor\CompressorController;
+
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Session\Middleware\StartSession;
@@ -82,6 +86,17 @@ Route::prefix('tools')->name('tools.')->group(function () {
     Route::get('/character-count', [CountController::class, 'count'])->name('charcount');
     Route::post('/character-count/run', [CountController::class, 'countrun'])->name('charcount.run');
     Route::post('/character-count/reset', [CountController::class, 'countreset'])->name('charcount.reset');
+
+    // 画像圧縮
+    Route::get('/image-compressor',  [CompressorController::class, 'index'])->name('image.compressor');
+    Route::post('/image-compressor', [CompressorController::class, 'compress'])->name('image.compressor.run');
+    // 画像圧縮ダウンロード
+    Route::get('/image-compressor/download', [CompressorController::class, 'download'])
+         ->name('image.compressor.download')
+         ->middleware('signed');
+    // 画像圧縮キャンセル
+    Route::post('/image-compressor/delete', [CompressorController::class, 'delete'])
+        ->name('image.compressor.delete'); // AJAX/POST削除
 
     // 将来追加するツール（例）
     // Route::get('/worddensity', [WordDensityController::class, 'index'])->name('worddensity');

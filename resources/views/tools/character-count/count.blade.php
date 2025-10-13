@@ -6,51 +6,17 @@
 @section('meta_description', '無料で使える文字数カウントツール。改行や全角・半角スペースも正確に計測。小説・ブログ・SNS投稿の文字数制限チェックに最適で、安心してご利用いただけます。')
 
 @section('content')
-  {{-- 単一カラム：中央にツール本体だけ --}}
   <div class="mx-auto max-w-5xl px-4">
     <div class="max-w-2xl mx-auto w-full space-y-6">
-      {{-- ▼ パンくず（H1の直前に置く） --}}
-      <nav aria-label="パンくず" class="text-sm text-gray-500">
-        <ol class="flex flex-wrap items-center gap-1" itemscope itemtype="https://schema.org/BreadcrumbList">
-          <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-            <a
-              href="{{ url('/') }}"
-              itemprop="item"
-              class="inline-flex items-center px-1 -mx-1 rounded-sm
-                    text-gray-600 hover:text-gray-900 hover:underline underline-offset-2
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
-                    transition"
-            >
-              <span itemprop="name">ホーム</span>
-            </a>
-            <meta itemprop="position" content="1" />
-          </li>
-
-          {{-- 中間階層があるならこの2つを使う（例：ツール一覧） --}}
-          {{--
-          <li aria-hidden="true" class="px-1 select-none">›</li>
-          <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-            <a
-              href="{{ route('tools.index') }}"
-              itemprop="item"
-              class="inline-flex items-center px-1 -mx-1 rounded-sm
-                    text-gray-600 hover:text-gray-900 hover:underline underline-offset-2
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
-                    transition"
-            >
-              <span itemprop="name">ツール</span>
-            </a>
-            <meta itemprop="position" content="2" />
-          </li>
-          --}}
-
-          <li aria-hidden="true" class="px-1 select-none">›</li>
-          <li aria-current="page" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-            <span class="px-1 -mx-1 rounded-sm text-gray-700" itemprop="name">文字数カウント</span>
-            <meta itemprop="position" content="{{ function_exists('route') && Route::has('tools.index') ? 3 : 2 }}" />
-          </li>
-        </ol>
-      </nav>
+      {{-- ▼ パンくず --}}
+      @include('partials.breadcrumbs', [
+        'items' => [
+          ['name' => 'ホーム', 'url' => url('/')],
+          // ツール一覧ページがあれば↓を有効化（なければ消してOK）
+          // ['name' => 'ツール', 'url' => route('tools.index')],
+          ['name' => '文字数カウント'] // ← currentは自動付与
+        ]
+      ])
 
       <h1 class="text-2xl font-bold">文字数カウント</h1>
 
@@ -144,7 +110,13 @@
           <dt class="font-semibold">行数</dt>
           <dd class="ml-6">テキストを改行で区切り、行の数をカウントします。</dd>
         </div>
-      </dl>
+        <div>
+          <dt class="font-semibold">スペース数（全角・半角を含む）</dt>
+          <dd class="ml-6">
+            全角スペースと半角スペースの合計をカウントします。<br>
+          </dd>
+          </dl>
+        </div>
       </section>
 
       {{-- 下部広告 --}}

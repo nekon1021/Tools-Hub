@@ -16,6 +16,7 @@ class HtmlSitemapController extends Controller
                 // ツール一覧
                 'staticLinks' => [
                     ['label' => '文字数カウント', 'url' => route('tools.charcount')],
+                    ['label' => '画像圧縮', 'url' => route('tools.image.compressor')],
                 ],
                 // カテゴリー一覧
                 'categories' => Category::query()
