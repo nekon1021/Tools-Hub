@@ -152,8 +152,8 @@
   @endphp
 
 
-  {{-- ヘッダー --}}
-  @include('layouts.navigation', ['theme' => $theme])
+  {{-- 例: レイアウト内 --}}
+  @include('layouts.navigation', ['theme' => trim($__env->yieldContent('nav_theme', 'sepia'))])
 
   {{-- メインコンテンツ --}}
   <main class="border">

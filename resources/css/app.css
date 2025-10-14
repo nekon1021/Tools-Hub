@@ -1,67 +1,18 @@
-/* resources/css/app.css */
 @tailwind base;
 @tailwind components;
-
-/* ▼ここに差し込む（components レイヤ） */
-@layer components {
-  /* ベース（既にある .tool-nav はそのままでOK） */
-  .tool-nav {
-    --bg: #ffffff;
-    --fg: #1f2937;
-    --border: rgba(0,0,0,.12);
-    --hover: rgba(0,0,0,.04);
-    --bg-image: none;
-
-    background-color: var(--bg) !important;
-    background-image: var(--bg-image);
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: cover;
-    color: var(--fg);
-    border-color: var(--border);
-  }
-  .text-var { color: var(--fg); }
-  .border-var { border: 1px solid var(--border); }
-  .tool-nav .hover-bg:hover { background-color: var(--hover) !important; }
-  .border-y-var { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-
-  /* ▼ テーマ別（ここが未出力だったので追加） */
-  .tool-nav.theme-text {
-    --bg:#eaf2ff;           /* 淡い青 */
-    --fg:#0f3b82;
-    --border:rgba(30,64,175,.25);
-    --hover:rgba(37,99,235,.08);
-    --bg-image:none;
-  }
-  .tool-nav.theme-image {
-    --bg:#ecfdf5;           /* エメラルド系 */
-    --fg:#065f46;
-    --border:rgba(5,150,105,.25);
-    --hover:rgba(5,150,105,.08);
-    --bg-image:none;
-  }
-  .tool-nav.theme-dev {
-    --bg:#f5f3ff;           /* パープル系 */
-    --fg:#5b21b6;
-    --border:rgba(147,51,234,.25);
-    --hover:rgba(147,51,234,.08);
-    --bg-image:none;
-  }
-  .tool-nav.theme-biz {
-    --bg:#fffbeb;           /* アンバー系 */
-    --fg:#8a6a04;
-    --border:rgba(245,158,11,.25);
-    --hover:rgba(245,158,11,.10);
-    --bg-image:none;
-  }
-  .tool-nav.theme-sepia {
-    --bg:#f4ecd8;           /* セピア/古紙 */
-    --fg:#704214;
-    --border:rgba(112,66,20,.40);
-    --hover:rgba(230,215,179,.85);
-    --bg-image:url('https://www.toptal.com/designers/subtlepatterns/patterns/aged-paper.jpg');
-  }
-}
-
-
 @tailwind utilities;
+
+/* 変数（テーマ別） */
+:root { --nav-bg:#fff; --nav-fg:#111827; --nav-border:#e5e7eb; --nav-hover:#f3f4f6; }
+.theme-light { --nav-bg:#fff; --nav-fg:#111827; --nav-border:#e5e7eb; --nav-hover:#f3f4f6; }
+.theme-dark  { --nav-bg:#111827; --nav-fg:#f9fafb; --nav-border:#374151; --nav-hover:#1f2937; }
+.theme-sepia { --nav-bg:#f6f1e1; --nav-fg:#4b3f2f; --nav-border:#e0d7c2; --nav-hover:#efe6cf; }
+
+/* 自作ユーティリティを Tailwind に登録 */
+@layer utilities {
+  .tool-nav      { background-color: var(--nav-bg); }
+  .text-var      { color: var(--nav-fg); }
+  .border-var    { border: 1px solid var(--nav-border); }
+  .hover-bg:hover{ background-color: var(--nav-hover); }
+  .border-y-var  { border-top:1px solid var(--nav-border); border-bottom:1px solid var(--nav-border); }
+}
