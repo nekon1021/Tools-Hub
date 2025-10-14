@@ -1,4 +1,5 @@
 name: Deploy to VPS
+
 on:
   push: { branches: [ main ] }
   workflow_dispatch: {}
@@ -7,13 +8,44 @@ concurrency: { group: prod-deploy, cancel-in-progress: true }
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
+      # 0) ソース取得（CIでビルドするために必要）
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 1) Node をセットアップして Vite ビルド
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.11.0'   # ←ローカルと合わせる（.nvmrc があればそれに合わせる）
+          cache: 'npm'
+      - name: Install deps
+        run: npm ci || npm install
+      - name: Build assets (Vite)
+        run: npm run build
+        # ここで ./public/build/ と ./public/build/manifest.json が生成される
+
+      # 2) VPS の known_hosts 登録（そのまま流用）
       - name: Add VPS host to known_hosts
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Deploy over SSH
+      # 3) public/build を VPS に配布（rsync/SCP）
+      - name: Upload public/build to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "public/build/*"
+          target: "/home/deploy/app/public/build"
+          strip_components: 2
+          overwrite: true
+
+      # 4) アプリのデプロイ（あなたの既存手順を実行）
+      - name: Deploy over SSH (composer, migrate, caches)
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -27,12 +59,16 @@ jobs:
             git checkout main
             git pull --ff-only origin main
 
+            # メンテモード（シークレットURL対応）
             docker compose exec -T -w /var/www/html app php artisan down --secret="${{ secrets.DEPLOY_SECRET }}"
 
+            # PHP依存の更新
             docker compose exec -T -w /var/www/html app composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --no-progress || true
 
+            # DBマイグレーション
             docker compose exec -T -w /var/www/html app php artisan migrate --force
 
+            # Laravelキャッシュ再生成（Vite manifest を読むビューの更新が目的）
             docker compose exec -T -w /var/www/html app php artisan optimize:clear
             docker compose exec -T -w /var/www/html app php artisan config:cache
             docker compose exec -T -w /var/www/html app php artisan route:cache
@@ -40,5 +76,6 @@ jobs:
 
             docker compose exec -T -w /var/www/html app php artisan up
 
+      # 5) メンテ明けウォームアップ（任意）
       - name: Warmup (optional)
         run: curl -fsS "https://toolshub.jp/${{ secrets.DEPLOY_SECRET }}" || true
