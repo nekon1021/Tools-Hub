@@ -1,21 +1,3 @@
-<style>
-  /* 高解像度紙背景 */
-  .sepia-photo-hd {
-    background-color: #f4ecd8; /* ベース色 */
-    background-image: url('https://www.toptal.com/designers/subtlepatterns/patterns/aged-paper.jpg');
-    /* ↑ 無料で使える古紙写真（高解像度） */
-    background-size: cover;    /* 全面をカバー */
-    background-position: center;
-    background-repeat: no-repeat;
-    color: #704214;            /* セピア文字色 */
-  }
-
-  /* ホバー時の色変化（透明レイヤー） */
-  .sepia-hover:hover {
-    background-color: rgba(230, 215, 179, 0.85) !important;
-  }
-</style>
-
 <nav class="tool-nav theme-{{ $theme ?? 'sepia' }}">
   <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
     <a href="/" class="flex items-center space-x-3 rtl:space-x-reverse">
@@ -30,7 +12,7 @@
         メニュー
       </button>
 
-      <!-- Dropdown（※使うならJSでtoggle対象にしてOK） -->
+      <!-- Dropdown（必要ならJSでtoggle） -->
       <div id="language-dropdown-menu"
            class="z-50 hidden my-4 text-base list-none rounded-lg shadow-sm tool-nav border-var">
         <ul class="py-2 font-medium" role="none">
@@ -44,7 +26,7 @@
         </ul>
       </div>
 
-      <!-- ハンバーガーボタン -->
+      <!-- ハンバーガー -->
       <button id="burgerBtn" type="button"
         class="inline-flex items-center p-2 w-10 h-10 justify-center text-sm rounded-lg md:hidden
                text-var border-var hover-bg">
@@ -73,13 +55,11 @@
             記事
           </a>
         </li>
-
         <li>
           <a href="{{ route('sitemap.html') }}" class="block p-3 rounded-lg font-semibold text-var hover-bg">
             サイトマップ
           </a>
         </li>
-
         @auth('web')
           <li>
             <form action="{{ route('admin.logout')}}" method="POST" class="contents">
@@ -96,11 +76,9 @@
 </nav>
 
 <script>
-  document.getElementById('menuBtn').addEventListener('click', function () {
-    document.getElementById('mega-menu-full-dropdown').classList.toggle('hidden');
-  });
-
-  document.getElementById('burgerBtn').addEventListener('click', function() {
-    document.getElementById('mega-menu-full-dropdown').classList.toggle('hidden');
-  });
+  const menuBtn   = document.getElementById('menuBtn');
+  const burgerBtn = document.getElementById('burgerBtn');
+  const panel     = document.getElementById('mega-menu-full-dropdown');
+  if (menuBtn && panel)   menuBtn.addEventListener('click', () => panel.classList.toggle('hidden'));
+  if (burgerBtn && panel) burgerBtn.addEventListener('click', () => panel.classList.toggle('hidden'));
 </script>

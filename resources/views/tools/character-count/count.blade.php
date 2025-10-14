@@ -1,6 +1,8 @@
 {{-- resources/views/tool/index.blade.php --}}
 @extends('layouts.app')
 
+@section('theme','text')
+
 @section('title', '文字数カウント｜' . config('app.name'))
 
 @section('meta_description', '無料で使える文字数カウントツール。改行や全角・半角スペースも正確に計測。小説・ブログ・SNS投稿の文字数制限チェックに最適で、安心してご利用いただけます。')
